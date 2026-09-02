@@ -1,0 +1,339 @@
+@import "tailwindcss";
+
+:root {
+  /* ===== Alex Service Design Tokens ===== */
+
+  /* Navy - primary brand color, backgrounds, headings */
+  --color-navy-950: #060c1a;
+  --color-navy-900: #0a1730;
+  --color-navy-800: #0f2143;
+  --color-navy-700: #16305c;
+  --color-navy-600: #204079;
+  --color-navy-500: #2e5399;
+  --color-navy-400: #5b7bb8;
+  --color-navy-100: #e3e9f4;
+  --color-navy-50: #f2f5fb;
+
+  /* Red - primary actions, alerts, critical states */
+  --color-red-700: #a3121c;
+  --color-red-600: #c81823;
+  --color-red-500: #e02030;
+  --color-red-400: #ea4d5a;
+  --color-red-100: #fbdde0;
+  --color-red-50: #fdf1f2;
+
+  /* Gray - neutral scale */
+  --color-gray-950: #0c0f14;
+  --color-gray-900: #14181f;
+  --color-gray-800: #1f2530;
+  --color-gray-700: #333c4a;
+  --color-gray-600: #4d5766;
+  --color-gray-500: #717d8c;
+  --color-gray-400: #9aa4b0;
+  --color-gray-300: #c2c9d1;
+  --color-gray-200: #dde1e6;
+  --color-gray-100: #eef1f4;
+  --color-gray-50: #f7f8fa;
+
+  /* Status colors */
+  --color-success-600: #0f8a4b;
+  --color-success-100: #dcf5e7;
+  --color-warning-600: #b6790a;
+  --color-warning-100: #fbedd0;
+  --color-info-600: #1a63c4;
+  --color-info-100: #dbe9fb;
+
+  --background: #ffffff;
+  --foreground: var(--color-navy-950);
+}
+
+@theme inline {
+  --color-navy-950: var(--color-navy-950);
+  --color-navy-900: var(--color-navy-900);
+  --color-navy-800: var(--color-navy-800);
+  --color-navy-700: var(--color-navy-700);
+  --color-navy-600: var(--color-navy-600);
+  --color-navy-500: var(--color-navy-500);
+  --color-navy-400: var(--color-navy-400);
+  --color-navy-100: var(--color-navy-100);
+  --color-navy-50: var(--color-navy-50);
+
+  --color-red-700: var(--color-red-700);
+  --color-red-600: var(--color-red-600);
+  --color-red-500: var(--color-red-500);
+  --color-red-400: var(--color-red-400);
+  --color-red-100: var(--color-red-100);
+  --color-red-50: var(--color-red-50);
+
+  --color-gray-950: var(--color-gray-950);
+  --color-gray-900: var(--color-gray-900);
+  --color-gray-800: var(--color-gray-800);
+  --color-gray-700: var(--color-gray-700);
+  --color-gray-600: var(--color-gray-600);
+  --color-gray-500: var(--color-gray-500);
+  --color-gray-400: var(--color-gray-400);
+  --color-gray-300: var(--color-gray-300);
+  --color-gray-200: var(--color-gray-200);
+  --color-gray-100: var(--color-gray-100);
+  --color-gray-50: var(--color-gray-50);
+
+  --color-success-600: var(--color-success-600);
+  --color-success-100: var(--color-success-100);
+  --color-warning-600: var(--color-warning-600);
+  --color-warning-100: var(--color-warning-100);
+  --color-info-600: var(--color-info-600);
+  --color-info-100: var(--color-info-100);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --font-display: var(--font-cairo);
+  --font-body: var(--font-tajawal);
+
+  --shadow-card: 0 1px 2px rgba(10, 23, 48, 0.04), 0 4px 16px rgba(10, 23, 48, 0.06);
+  --shadow-card-hover: 0 2px 4px rgba(10, 23, 48, 0.06), 0 12px 28px rgba(10, 23, 48, 0.1);
+  --shadow-popover: 0 8px 30px rgba(6, 12, 26, 0.18);
+}
+
+html {
+  direction: rtl;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-body), "Tajawal", sans-serif;
+  font-feature-settings: "tnum" 1;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display), "Cairo", sans-serif;
+}
+
+/* Tabular numerals for money/stat displays regardless of font */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Thin, quiet scrollbars for dashboard surfaces */
+.scroll-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: var(--color-gray-300);
+  border-radius: 999px;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.pulse-dot {
+  animation: pulse-dot 1.8s ease-in-out infinite;
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-up {
+  animation: fade-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Enters from the right (matches RTL reading direction) — used for the hero headline and CTAs. */
+@keyframes fade-in-right {
+  from { opacity: 0; transform: translateX(48px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.animate-fade-in-right {
+  animation: fade-in-right 0.75s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Truck drives once from origin to destination on mount, then idles gently in place. */
+@keyframes truck-drive {
+  0% { transform: translateX(78%); opacity: 0; }
+  14% { opacity: 1; }
+  100% { transform: translateX(0%); opacity: 1; }
+}
+.animate-truck-drive {
+  animation: truck-drive 2.4s cubic-bezier(0.22, 1, 0.36, 0.98) both;
+}
+
+@keyframes truck-idle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+.animate-truck-idle {
+  animation: truck-idle 2.2s ease-in-out infinite;
+  animation-delay: 2.4s;
+}
+
+/* Dashed road markings scroll continuously to suggest ongoing motion. */
+@keyframes road-scroll {
+  from { background-position-x: 0; }
+  to { background-position-x: -32px; }
+}
+.animate-road-scroll {
+  animation: road-scroll 0.9s linear infinite;
+}
+
+/*
+  Truck makes a very short hidden motion then quickly reveals itself
+  fully at its final resting spot beside the phone.
+*/
+@keyframes truck-peek-left {
+  0% {
+    transform: translateX(50%);
+    opacity: 1;
+    z-index: 10;
+  }
+  35% {
+    transform: translateX(3%);
+    opacity: 1;
+    z-index: 10;
+  }
+  36% {
+    z-index: 10;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(0%);
+    opacity: 1;
+    z-index: 10;
+  }
+}
+.animate-truck-peek-left {
+  animation: truck-peek-left 6s cubic-bezier(0.22, 1, 0.36, 0.98) both;
+}
+
+@keyframes gps-draw {
+  0% {
+    clip-path: inset(100% 0 0 0);
+    opacity: 0;
+    transform: translateY(30px);
+  }
+
+  15% {
+    opacity: 1;
+  }
+
+  100% {
+    clip-path: inset(0 0 0 0);
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-gps-draw {
+  animation: gps-draw 3s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* حركة مستمرة لفوق وتحت لصور الـ GPS طول ما الصفحة مفتوحة */
+@keyframes gps-float-updown {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-14px); }
+}
+.animate-gps-float {
+  animation: gps-float-updown 3.2s ease-in-out infinite;
+}
+
+/* حركة مستمرة يمين وشمال للتراك طول ما الصفحة مفتوحة */
+@keyframes truck-drive-loop {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(-12px); }
+}
+.animate-truck-loop {
+  animation: truck-drive-loop 2.6s ease-in-out infinite;
+}
+
+/* ظهور تدريجي من تحت لفوق عند الدخول للشاشة */
+@keyframes reveal-up {
+  from { opacity: 0; transform: translateY(32px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.reveal-up {
+  opacity: 0;
+  transform: translateY(32px);
+}
+
+.reveal-up.is-visible {
+  animation: reveal-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ظهور من اليمين - للعناصر الزوجية في الترتيب */
+@keyframes reveal-right {
+  from { opacity: 0; transform: translateX(40px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.reveal-right {
+  opacity: 0;
+  transform: translateX(40px);
+}
+.reveal-right.is-visible {
+  animation: reveal-right 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ظهور من الشمال - للعناصر الفردية في الترتيب */
+@keyframes reveal-left {
+  from { opacity: 0; transform: translateX(-40px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.reveal-left {
+  opacity: 0;
+  transform: translateX(-40px);
+}
+.reveal-left.is-visible {
+  animation: reveal-left 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* تأخير متدرج بين الخطوات/الكروت عشان تظهر واحدة ورا التانية */
+.reveal-up.is-visible,
+.reveal-right.is-visible,
+.reveal-left.is-visible {
+  animation-delay: calc(var(--step-index, 0) * 90ms);
+}
+
+/* تأخير متدرج للكروت (قسم Features) اللي بتستخدم nth-child بدل step-index */
+.reveal-up.is-visible:nth-child(1) { animation-delay: 0ms; }
+.reveal-up.is-visible:nth-child(2) { animation-delay: 70ms; }
+.reveal-up.is-visible:nth-child(3) { animation-delay: 140ms; }
+.reveal-up.is-visible:nth-child(4) { animation-delay: 210ms; }
+.reveal-up.is-visible:nth-child(5) { animation-delay: 280ms; }
+.reveal-up.is-visible:nth-child(6) { animation-delay: 350ms; }
+.reveal-up.is-visible:nth-child(7) { animation-delay: 420ms; }
+.reveal-up.is-visible:nth-child(8) { animation-delay: 490ms; }
+
+/* حركة عند تمرير الماوس فوق أزرار متاجر التطبيقات */
+.store-btn {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.25s ease, background-color 0.25s ease;
+}
+.store-btn:hover {
+  transform: translateY(-3px) scale(1.03);
+  box-shadow: 0 10px 24px rgba(255, 255, 255, 0.25);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse-dot,
+  .animate-fade-up,
+  .animate-fade-in-right,
+  .animate-truck-drive,
+  .animate-truck-idle,
+  .animate-road-scroll,
+  .animate-truck-peek-left,
+  .animate-gps-draw,
+  .animate-gps-float,
+  .animate-truck-loop,
+  .reveal-up,
+  .reveal-right,
+  .reveal-left,
+  .store-btn {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
