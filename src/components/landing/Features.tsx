@@ -38,7 +38,7 @@ export function Features() {
           observer.disconnect();
         }
       },
-      { threshold: 0.5 }
+      { threshold: 0.10 }
     );
 
     observer.observe(el);
