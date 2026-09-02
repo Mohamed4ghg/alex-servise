@@ -1,5 +1,7 @@
 "use client";
 
+import { ChevronDown } from "lucide-react";
+
 export const FAQS = [
   {
     q: "كام المدة اللي بياخدها تجهيز النظام وتشغيله؟",
@@ -29,13 +31,36 @@ export const FAQS = [
 
 export default function FAQ() {
   return (
-    <div className="space-y-4">
-      {FAQS.map((item, i) => (
-        <details key={i} className="border rounded-lg p-4">
-          <summary className="font-bold cursor-pointer">{item.q}</summary>
-          <p className="mt-2 text-gray-600">{item.a}</p>
-        </details>
-      ))}
-    </div>
+    <section id="faq" className="mx-auto max-w-3xl px-4 py-16 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-xl text-center">
+        <span className="text-sm font-bold text-red-600">الأسئلة الشائعة</span>
+        <h2 className="mt-2 font-display text-3xl font-extrabold text-navy-950 sm:text-4xl">
+          عندك سؤال؟ إجابتك هنا
+        </h2>
+        <p className="mt-3 text-gray-500">
+          تجميعة لأكتر الأسئلة اللي بتوصلنا من شركات الشحن قبل ما تبدأ معانا.
+        </p>
+      </div>
+
+      <div className="mt-10 space-y-3">
+        {FAQS.map((item, i) => (
+          <details
+            key={i}
+            open={i === 0}
+            className="group rounded-2xl border border-gray-100 bg-white shadow-[var(--shadow-card)] transition open:shadow-[var(--shadow-card-hover)]"
+          >
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 marker:content-none">
+              <span className="font-display text-base font-bold text-navy-950">
+                {item.q}
+              </span>
+              <ChevronDown className="h-5 w-5 shrink-0 text-red-600 transition-transform duration-300 group-open:rotate-180" />
+            </summary>
+            <p className="px-5 pb-5 text-sm leading-7 text-gray-500">
+              {item.a}
+            </p>
+          </details>
+        ))}
+      </div>
+    </section>
   );
 }
