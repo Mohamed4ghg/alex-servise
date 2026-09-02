@@ -6,7 +6,9 @@ export type ShipmentStatus =
   | "delivered"
   | "failed"
   | "returned"
-  | "cancelled";
+  | "cancelled"
+  | "new" // <--- زودتها
+  | "out_for_delivery"; // <--- زودتها
 
 export const SHIPMENT_STATUS_LABEL: Record<ShipmentStatus, string> = {
   pending: "قيد الانتظار",
@@ -17,9 +19,11 @@ export const SHIPMENT_STATUS_LABEL: Record<ShipmentStatus, string> = {
   failed: "فشل التسليم",
   returned: "مرتجع",
   cancelled: "ملغي",
+  new: "جديد", // <--- زودتها
+  out_for_delivery: "خارج للتوصيل", // <--- زودتها
 };
 
-export type AgentStatus = "active" | "inactive" | "on_delivery";
+export type AgentStatus = "active" | "inactive" | "on_delivery" | "available" | "on_task" | "unavailable" | "offline"; // <--- زودت كل الحالات اللي في mock
 
 export interface Agent {
   id: string;
@@ -34,6 +38,8 @@ export interface Customer {
   phone: string;
   email?: string;
   address?: string;
+  area?: string; // <--- زودتها
+  type?: string; // <--- زودتها عشان mock
 }
 
 export interface TimelineEvent {
@@ -45,7 +51,7 @@ export interface TimelineEvent {
 export interface Shipment {
   id: string;
   trackingNumber: string;
-  code: string;
+  code: string; // <--- اتأكد ان mock فيه code
   status: ShipmentStatus;
   customer: Customer;
   receiver: {
@@ -53,6 +59,7 @@ export interface Shipment {
     area: string;
     phone: string;
     address?: string;
+    notes?: string; // <--- زودتها
   };
   expectedDeliveryDate: string;
   timeline: TimelineEvent[];
@@ -65,4 +72,5 @@ export interface Notification {
   message: string;
   read: boolean;
   createdAt: string;
+  type?: string; // <--- زودتها عشان mock
 }
