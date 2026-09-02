@@ -1,4 +1,4 @@
-import { Agent, Customer, Notification, Shipment } from "./types";
+import { Agent, Customer, Notification, Shipment, TimelineEvent } from "./types";
 
 export const AREAS = [
   "سيدي جابر",
@@ -137,8 +137,8 @@ export const CUSTOMERS: Customer[] = [
   },
 ];
 
-const timelineFor = (status: Shipment["status"]) => {
-  const base = [
+const timelineFor = (status: Shipment["status"]): TimelineEvent[] => {
+  const base: TimelineEvent[] = [
     { date: "17/08/2026", time: "10:32 ص", label: "تم إنشاء الشحنة", actor: "موظف المكتب" },
     { date: "17/08/2026", time: "11:05 ص", label: "تم إسنادها لأحمد محمد", actor: "موظف المكتب" },
     { date: "17/08/2026", time: "12:20 م", label: "تم استلام الشحنة", actor: "أحمد محمد" },
@@ -158,8 +158,7 @@ const timelineFor = (status: Shipment["status"]) => {
   return base;
 };
 
-type ShipmentStatus = Shipment["status"];
-const statusCycle: ShipmentStatus[] = [
+const statusCycle: Shipment["status"][] = [
   "new",
   "picked_up",
   "assigned",
@@ -189,9 +188,12 @@ export const SHIPMENTS: Shipment[] = Array.from({ length: 42 }).map((_, i) => {
   const agent = AGENTS[i % AGENTS.length];
   const area = AREAS[i % AREAS.length];
   const value = 250 + ((i * 37) % 1800);
+  const tracking = `TRK-2026-${(1200 + i).toString().padStart(5, "0")}`;
+  
   return {
     id: `SH-${1000 + i}`,
-    trackingNumber: `TRK-2026-${(1200 + i).toString().padStart(5, "0")}`,
+    trackingNumber: tracking,
+    code: tracking, // <--- مهم عشان الايرور
     customer: {
       name: customer.name,
       phone: customer.phone,

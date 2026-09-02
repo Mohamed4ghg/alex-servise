@@ -7,8 +7,8 @@ export type ShipmentStatus =
   | "failed"
   | "returned"
   | "cancelled"
-  | "new" // <--- زودتها
-  | "out_for_delivery"; // <--- زودتها
+  | "new"
+  | "out_for_delivery";
 
 export const SHIPMENT_STATUS_LABEL: Record<ShipmentStatus, string> = {
   pending: "قيد الانتظار",
@@ -19,17 +19,28 @@ export const SHIPMENT_STATUS_LABEL: Record<ShipmentStatus, string> = {
   failed: "فشل التسليم",
   returned: "مرتجع",
   cancelled: "ملغي",
-  new: "جديد", // <--- زودتها
-  out_for_delivery: "خارج للتوصيل", // <--- زودتها
+  new: "جديد",
+  out_for_delivery: "خارج للتوصيل",
 };
 
-export type AgentStatus = "active" | "inactive" | "on_delivery" | "available" | "on_task" | "unavailable" | "offline"; // <--- زودت كل الحالات اللي في mock
+export type AgentStatus = "active" | "inactive" | "on_delivery" | "available" | "on_task" | "unavailable" | "offline";
 
 export interface Agent {
   id: string;
   name: string;
   phone: string;
   status: AgentStatus;
+  avatar: string;
+  area: string;
+  shipmentsToday: number;
+  delivered: number;
+  remaining: number;
+  successRate: number;
+  lastSeen: string;
+  lat: number;
+  lng: number;
+  collectedToday: number;
+  handedOverToday: number;
 }
 
 export interface Customer {
@@ -38,39 +49,60 @@ export interface Customer {
   phone: string;
   email?: string;
   address?: string;
-  area?: string; // <--- زودتها
-  type?: string; // <--- زودتها عشان mock
+  area: string;
+  type: "company" | "individual" | string;
+  shipmentsCount: number;
+  totalValue: number;
+  totalCollections: number;
 }
 
 export interface TimelineEvent {
   label: string;
   date: string;
   time: string;
+  actor: string;
 }
+
+export type ShipmentPriority = "urgent" | "high" | "normal";
 
 export interface Shipment {
   id: string;
   trackingNumber: string;
-  code: string; // <--- اتأكد ان mock فيه code
+  code: string; // هنجيبه من trackingNumber
   status: ShipmentStatus;
-  customer: Customer;
+  customer: {
+    name: string;
+    phone: string;
+    address?: string;
+    area?: string;
+    type?: string;
+  };
   receiver: {
     name: string;
     area: string;
     phone: string;
-    address?: string;
-    notes?: string; // <--- زودتها
+    address: string;
+    notes?: string;
   };
+  type: string;
+  description: string;
+  weightKg: number;
+  piecesCount: number;
+  value: number;
+  collectionAmount: number;
+  agentId?: string;
+  agentName?: string;
+  priority: ShipmentPriority;
+  createdAt: string;
   expectedDeliveryDate: string;
   timeline: TimelineEvent[];
-  agentId?: string;
-  notes?: string;
 }
 
 export interface Notification {
   id: string;
   message: string;
-  read: boolean;
-  createdAt: string;
-  type?: string; // <--- زودتها عشان mock
+  read?: boolean;
+  createdAt?: string;
+  type: "info" | "success" | "warning" | "danger" | string;
+  time: string;
 }
