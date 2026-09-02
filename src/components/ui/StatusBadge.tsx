@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { getShipmentStatusMap, type StatusInfo } from "@/lib/status-cache";
+import { AgentStatus } from "@/lib/types"; // <--- استوردناه من types
 
 // عمود color في shipment_statuses بيرجع اسم عائلة لون (gray, info, warning,
 // success, red)، والكلاسات دي بتحوله لكلاسات Tailwind فعلية
@@ -26,14 +27,14 @@ export function ShipmentStatusBadge({
   useEffect(() => {
     let mounted = true;
     getShipmentStatusMap().then((map) => {
-      if (mounted) setInfo(map[status] ?? null);
+      if (mounted) setInfo(map[status]?? null);
     });
     return () => {
       mounted = false;
     };
   }, [status]);
 
-  const colorClass = COLOR_CLASSES[info?.color ?? "gray"];
+  const colorClass = COLOR_CLASSES[info?.color?? "gray"];
 
   return (
     <span
@@ -44,16 +45,16 @@ export function ShipmentStatusBadge({
       )}
     >
       <span className="h-1.5 w-1.5 rounded-full bg-current" />
-      {info?.label ?? status}
+      {info?.label?? status}
     </span>
   );
 }
 
-// بادچ المندوبين - عرّفنا الأنواع هنا مباشرة عشان نتجنب مشكلة الاستيراد
-// من lib/types لحد ما نتأكد إيه اللي موجود جواه فعلياً
-type AgentStatus = "available" | "on_task" | "unavailable" | "offline";
-
+// بادچ المندوبين - بقينا نستخدم AgentStatus من lib/types
 const AGENT_STATUS_LABEL: Record<AgentStatus, string> = {
+  active: "نشط",
+  inactive: "غير نشط",
+  on_delivery: "يُسلم",
   available: "متاح",
   on_task: "في مهمة",
   unavailable: "غير متاح",
@@ -61,6 +62,9 @@ const AGENT_STATUS_LABEL: Record<AgentStatus, string> = {
 };
 
 const agentDotStyles: Record<AgentStatus, string> = {
+  active: "bg-success-600",
+  inactive: "bg-gray-400",
+  on_delivery: "bg-info-600",
   available: "bg-success-600",
   on_task: "bg-warning-600",
   unavailable: "bg-red-600",
@@ -71,7 +75,7 @@ export function AgentStatusBadge({
   status,
   className,
 }: {
-  status: AgentStatus;
+  status: AgentStatus; // <--- بقى من types
   className?: string;
 }) {
   return (
