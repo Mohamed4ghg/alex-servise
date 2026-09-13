@@ -6,19 +6,14 @@ import {
   AlertCircle,
   Loader2,
   MapPin,
-  Package,
   PackagePlus,
   Phone,
   User,
-  Weight,
+  DollarSign,
+  FileText,
 } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { createCustomer } from "@/utils/customers-helper";
-
-// سعر ثابت مؤقت للشحنة الواحدة، لحد ما نظام حساب السعر حسب المنطقة يتفعّل
-const FLAT_SHIPPING_FEE = 50;
-
-type ShipmentType = "delivery" | "return" | "exchange";
 
 export default function NewShipmentPage() {
   const router = useRouter();
@@ -32,11 +27,7 @@ export default function NewShipmentPage() {
     receiverPhone: "",
     receiverAddress: "",
     receiverArea: "",
-    receiverNotes: "",
-    type: "delivery" as ShipmentType,
     description: "",
-    weightKg: "",
-    piecesCount: "1",
     collectionAmount: "",
   });
 
@@ -54,8 +45,32 @@ export default function NewShipmentPage() {
     e.preventDefault();
     setError(null);
 
-    if (!form.receiverName.trim() || !form.receiverPhone.trim() || !form.receiverAddress.trim() || !form.receiverArea.trim()) {
-      setError("برجاء ملء بيانات المستلم كاملة (الاسم، الهاتف، العنوان، المنطقة)");
+    // بيانات المستلم الأساسية
+    if (
+      !form.receiverName.trim() ||
+      !form.receiverPhone.trim() ||
+      !form.receiverAddress.trim() ||
+      !form.receiverArea.trim()
+    ) {
+      setError("برجاء ملء بيانات المستلم كاملة (الاسم، الهاتف، العنوان، المدينة)");
+      return;
+    }
+
+    // رقم هاتف مصري لازم يكون 11 رقم
+    if (form.receiverPhone.trim().length !== 11) {
+      setError("رقم هاتف المستلم لازم يكون 11 رقم");
+      return;
+    }
+
+    // نوع البضاعة إلزامي — زي عمود "نوع البضاعة" في الشيت
+    if (!form.description.trim()) {
+      setError("برجاء كتابة نوع البضاعة");
+      return;
+    }
+
+    // مبلغ التحصيل (COD) إلزامي — زي عمود COD في الشيت
+    if (!form.collectionAmount.trim() || Number(form.collectionAmount) < 0) {
+      setError("برجاء إدخال مبلغ التحصيل (COD)");
       return;
     }
 
@@ -107,13 +122,8 @@ export default function NewShipmentPage() {
       receiver_phone: form.receiverPhone.trim(),
       receiver_address: form.receiverAddress.trim(),
       receiver_area: form.receiverArea.trim(),
-      receiver_notes: form.receiverNotes.trim() || null,
-      type: form.type,
-      description: form.description.trim() || null,
-      weight_kg: form.weightKg ? Number(form.weightKg) : null,
-      pieces_count: form.piecesCount ? Number(form.piecesCount) : 1,
-      value: null,
-      collection_amount: form.collectionAmount ? Number(form.collectionAmount) : FLAT_SHIPPING_FEE,
+      description: form.description.trim(),
+      collection_amount: Number(form.collectionAmount),
       // نحدد الحالة صراحة بدل الافتراضي 'new' اللي مش موجود في shipment_statuses
       status: assignedAgentId ? "assigned" : "pending",
       priority: "normal",
@@ -172,89 +182,34 @@ export default function NewShipmentPage() {
         />
 
         <TextField
-          label="المنطقة"
+          label="المدينة"
           icon={MapPin}
           value={form.receiverArea}
           onChange={(v) => update("receiverArea", v)}
-          placeholder="مثال: سموحة، الإسكندرية"
+          placeholder="مثال: الإسكندرية"
           required
         />
-
-        <div>
-          <label className="mb-1.5 block text-sm font-semibold text-navy-900">
-            ملاحظات للمندوب (اختياري)
-          </label>
-          <textarea
-            value={form.receiverNotes}
-            onChange={(e) => update("receiverNotes", e.target.value)}
-            rows={2}
-            className="w-full rounded-lg border border-gray-200 px-3.5 py-2.5 text-sm focus:border-navy-400 focus:outline-none focus:ring-2 focus:ring-navy-100"
-          />
-        </div>
 
         <hr className="border-gray-100" />
 
         <h2 className="text-sm font-bold text-navy-950">تفاصيل الشحنة</h2>
 
-        <div>
-          <label className="mb-1.5 block text-sm font-semibold text-navy-900">نوع الشحنة</label>
-          <div className="grid grid-cols-3 gap-2 rounded-lg bg-gray-50 p-1">
-            {(
-              [
-                { key: "delivery", label: "توصيل" },
-                { key: "return", label: "مرتجع" },
-                { key: "exchange", label: "استبدال" },
-              ] as { key: ShipmentType; label: string }[]
-            ).map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => update("type", t.key)}
-                className={`rounded-md py-2 text-sm font-bold transition ${
-                  form.type === t.key ? "bg-white text-navy-950 shadow-sm" : "text-gray-500"
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <label className="mb-1.5 block text-sm font-semibold text-navy-900">
-            وصف المحتوى (اختياري)
-          </label>
-          <input
-            value={form.description}
-            onChange={(e) => update("description", e.target.value)}
-            placeholder="مثال: ملابس، إلكترونيات..."
-            className="w-full rounded-lg border border-gray-200 px-3.5 py-2.5 text-sm focus:border-navy-400 focus:outline-none focus:ring-2 focus:ring-navy-100"
-          />
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <TextField
-            label="الوزن (كجم)"
-            icon={Weight}
-            type="number"
-            value={form.weightKg}
-            onChange={(v) => update("weightKg", v)}
-          />
-          <TextField
-            label="عدد القطع"
-            icon={Package}
-            type="number"
-            value={form.piecesCount}
-            onChange={(v) => update("piecesCount", v)}
-          />
-        </div>
+        <TextField
+          label="نوع البضاعة"
+          icon={FileText}
+          value={form.description}
+          onChange={(v) => update("description", v)}
+          placeholder="مثال: Notebook, EXPEDITION..."
+          required
+        />
 
         <TextField
-          label="مبلغ التحصيل عند الاستلام (اختياري)"
-          value={form.collectionAmount}
+          label="مبلغ التحصيل (COD)"
+          icon={DollarSign}
           type="number"
+          value={form.collectionAmount}
           onChange={(v) => update("collectionAmount", v)}
-          placeholder={`افتراضي: ${FLAT_SHIPPING_FEE} جنيه (رسوم الشحن)`}
+          required
         />
 
         {error && (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
@@ -9,8 +9,10 @@ import {
   Copy,
   Loader2,
   MapPin,
+  QrCode,
   User,
   UserRound,
+  X,
 } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { logActivity } from "@/utils/log-activity";
@@ -160,6 +162,9 @@ function ShipmentDetailsContent({ id }: { id: string }) {
   const [updatingStatus, setUpdatingStatus] = useState<ShipmentStatus | null>(null);
   const [reassigning, setReassigning] = useState(false);
 
+  // مودال مسح كود QR لتأكيد التسليم
+  const [scanModalOpen, setScanModalOpen] = useState(false);
+
   async function fetchShipment() {
     setLoading(true);
     setError(null);
@@ -276,6 +281,21 @@ function ShipmentDetailsContent({ id }: { id: string }) {
 
     setUpdatingStatus(null);
     fetchShipment();
+  }
+
+  // زرار "تم التسليم" بيفتح مودال المسح بدل ما يحدّث الحالة على طول
+  function handleStatusButtonClick(key: ShipmentStatus) {
+    if (key === "delivered") {
+      setScanModalOpen(true);
+      return;
+    }
+    handleStatusChange(key);
+  }
+
+  // بتتنادى لما المودال يمسح كود ومطابق لرقم تتبع الشحنة
+  function handleDeliveryConfirmed() {
+    setScanModalOpen(false);
+    handleStatusChange("delivered");
   }
 
   async function handleReassign(newAgentId: string) {
@@ -486,7 +506,7 @@ function ShipmentDetailsContent({ id }: { id: string }) {
               {(Object.keys(statusLabels) as ShipmentStatus[]).map((key) => (
                 <button
                   key={key}
-                  onClick={() => handleStatusChange(key)}
+                  onClick={() => handleStatusButtonClick(key)}
                   disabled={key === shipment.status || updatingStatus !== null}
                   className={`flex items-center justify-center gap-1.5 rounded-lg border px-2.5 py-2 text-[11px] font-semibold transition ${
                     key === shipment.status
@@ -495,10 +515,14 @@ function ShipmentDetailsContent({ id }: { id: string }) {
                   } disabled:opacity-60`}
                 >
                   {updatingStatus === key && <Loader2 className="h-3 w-3 animate-spin" />}
+                  {key === "delivered" && updatingStatus !== key && <QrCode className="h-3 w-3" />}
                   {statusLabels[key]}
                 </button>
               ))}
             </div>
+            <p className="mt-2 text-[11px] text-gray-400">
+              "تم التسليم" بيفتح كاميرا لمسح كود الشحنة قبل ما يتأكد التحديث.
+            </p>
           </div>
 
           <div className="rounded-2xl border border-gray-100 bg-navy-50 p-5">
@@ -521,6 +545,119 @@ function ShipmentDetailsContent({ id }: { id: string }) {
             )}
           </div>
         </div>
+      </div>
+
+      {scanModalOpen && (
+        <QrScanModal
+          expectedCode={shipment.tracking_number}
+          onClose={() => setScanModalOpen(false)}
+          onConfirmed={handleDeliveryConfirmed}
+        />
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// مودال مسح كود QR لتأكيد التسليم
+// بيفتح كاميرا المتصفح، ويقارن الكود اللي اتصور برقم تتبع الشحنة
+// ============================================================
+
+function QrScanModal({
+  expectedCode,
+  onClose,
+  onConfirmed,
+}: {
+  expectedCode: string;
+  onClose: () => void;
+  onConfirmed: () => void;
+}) {
+  const containerId = "qr-scan-region";
+  const scannerRef = useRef<import("html5-qrcode").Html5Qrcode | null>(null);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const handledRef = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function start() {
+      try {
+        const { Html5Qrcode } = await import("html5-qrcode");
+        if (cancelled) return;
+
+        const scanner = new Html5Qrcode(containerId);
+        scannerRef.current = scanner;
+
+        await scanner.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: { width: 240, height: 240 } },
+          (decodedText) => {
+            if (handledRef.current) return;
+            handledRef.current = true;
+
+            if (decodedText.trim() === expectedCode.trim()) {
+              scanner.stop().catch(() => {});
+              onConfirmed();
+            } else {
+              setScanError("الكود اللي اتصور مش مطابق لرقم الشحنة، راجع الملصق وحاول تاني");
+              // نسيب الكاميرا شغالة عشان يحاول يمسح تاني
+              setTimeout(() => {
+                handledRef.current = false;
+              }, 1200);
+            }
+          },
+          () => {
+            // أخطاء المسح اللحظية (مفيش كود في الفريم) بنتجاهلها عمدًا
+          }
+        );
+      } catch (err) {
+        console.error("QR camera error:", err);
+        if (!cancelled) setCameraError("تعذر تشغيل الكاميرا، تأكد إنك سامح للمتصفح بالوصول للكاميرا");
+      }
+    }
+
+    start();
+
+    return () => {
+      cancelled = true;
+      scannerRef.current?.stop().catch(() => {});
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
+        <div className="flex items-center justify-between">
+          <h3 className="flex items-center gap-2 font-display text-sm font-bold text-navy-950">
+            <QrCode className="h-4 w-4" /> امسح كود الشحنة لتأكيد التسليم
+          </h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-navy-900">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <p className="mt-2 text-xs text-gray-500">
+          وجّه الكاميرا على كود QR المطبوع على ملصق الشحنة رقم{" "}
+          <span className="font-semibold text-navy-900 tnum">{expectedCode}</span>
+        </p>
+
+        <div id={containerId} className="mt-4 overflow-hidden rounded-xl bg-black" />
+
+        {cameraError && (
+          <p className="mt-3 rounded-lg bg-red-50 p-2.5 text-xs font-semibold text-red-600">{cameraError}</p>
+        )}
+        {scanError && (
+          <p className="mt-3 rounded-lg bg-red-50 p-2.5 text-xs font-semibold text-red-600">{scanError}</p>
+        )}
+
+        <button
+          onClick={onClose}
+          className="mt-4 w-full rounded-lg border border-gray-200 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+        >
+          إلغاء
+        </button>
       </div>
     </div>
   );
