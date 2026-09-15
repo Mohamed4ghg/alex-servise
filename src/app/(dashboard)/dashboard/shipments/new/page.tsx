@@ -15,6 +15,7 @@ import {
 import { createClient } from "@/utils/supabase/client";
 import { logActivity } from "@/utils/log-activity";
 import { createCustomer, type Customer } from "@/utils/customers-helper";
+import BulkImportShipments from "@/components/shipments/BulkImportShipments";
 
 type Agent = { id: string; name: string; area: string | null };
 
@@ -320,6 +321,13 @@ export default function CreateShipmentPage() {
             </div>
           )}
         </section>
+
+        {/* رفع أكتر من شحنة دفعة واحدة من Excel - لازم يكون العميل متختار الأول */}
+        {selectedCustomer && (
+          <section className="rounded-2xl border border-gray-100 bg-white p-5 shadow-[var(--shadow-card)]">
+            <BulkImportShipments customerId={selectedCustomer.id} />
+          </section>
+        )}
 
         {/* بيانات المستلم */}
         <section className="rounded-2xl border border-gray-100 bg-white p-5 shadow-[var(--shadow-card)]">

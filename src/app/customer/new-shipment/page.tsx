@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { createCustomer } from "@/utils/customers-helper";
+import BulkImportShipments from "@/components/shipments/BulkImportShipments";
 
 export default function NewShipmentPage() {
   const router = useRouter();
@@ -21,6 +22,10 @@ export default function NewShipmentPage() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // بيانات العميل الحالي (لازمة عشان نبعتها للفورم العادي ولمكون الرفع الجماعي)
+  const [customer, setCustomer] = useState<{ id: string } | null>(null);
+  const [customerLoading, setCustomerLoading] = useState(true);
 
   const [form, setForm] = useState({
     receiverName: "",
@@ -30,6 +35,36 @@ export default function NewShipmentPage() {
     description: "",
     collectionAmount: "",
   });
+
+  // نجيب/نربط العميل مرة واحدة لما الصفحة تفتح، عشان يبقى متاح لمكون الرفع الجماعي كمان
+  useEffect(() => {
+    (async () => {
+      setCustomerLoading(true);
+
+      const { data: userData } = await supabase.auth.getUser();
+      const user = userData?.user;
+
+      if (!user) {
+        setCustomerLoading(false);
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name, phone")
+        .eq("id", user.id)
+        .single();
+
+      const { customer: c } = await createCustomer({
+        fullName: profile?.full_name ?? "عميل",
+        phone: profile?.phone ?? "",
+      });
+
+      if (c) setCustomer(c);
+      setCustomerLoading(false);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function update(field: keyof typeof form, value: string) {
     setForm((f) => ({ ...f, [field]: value }));
@@ -74,36 +109,12 @@ export default function NewShipmentPage() {
       return;
     }
 
+    if (!customer) {
+      setError("تعذر ربط حسابك كعميل، برجاء تحديث الصفحة والمحاولة مرة أخرى");
+      return;
+    }
+
     setLoading(true);
-
-    // هات المستخدم الحالي
-    const { data: userData } = await supabase.auth.getUser();
-    const user = userData?.user;
-
-    if (!user) {
-      setError("لازم تكون مسجل دخول عشان تعمل شحنة");
-      setLoading(false);
-      return;
-    }
-
-    // هات بروفايله عشان نستخدم بياناته كعميل (اسم/تليفون)
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("full_name, phone")
-      .eq("id", user.id)
-      .single();
-
-    // اربط أو أنشئ سجل عميل مرتبط بالحساب ده (نفس الفانكشن اللي عندنا بالفعل)
-    const { customer, error: customerError } = await createCustomer({
-      fullName: profile?.full_name ?? "عميل",
-      phone: profile?.phone ?? "",
-    });
-
-    if (customerError || !customer) {
-      setError(customerError ?? "تعذر ربط حسابك كعميل، برجاء المحاولة مرة أخرى");
-      setLoading(false);
-      return;
-    }
 
     // حاول تدور على مندوب متاح في نفس منطقة المستلم (توزيع تلقائي)
     const { data: assignedAgentId } = await supabase.rpc("assign_agent_for_area", {
@@ -151,6 +162,13 @@ export default function NewShipmentPage() {
           <p className="text-sm text-gray-500">أدخل بيانات المستلم وتفاصيل الشحنة</p>
         </div>
       </div>
+
+      {/* رفع أكتر من شحنة دفعة واحدة من Excel */}
+      {!customerLoading && customer && (
+        <div className="mt-6">
+          <BulkImportShipments customerId={customer.id} />
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-5 rounded-2xl border border-gray-100 bg-white p-6 shadow-[var(--shadow-card)]">
         <h2 className="text-sm font-bold text-navy-950">بيانات المستلم</h2>
