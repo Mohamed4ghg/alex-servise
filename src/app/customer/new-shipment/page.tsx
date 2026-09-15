@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
+  FileSpreadsheet,
   Loader2,
   MapPin,
   PackagePlus,
@@ -11,6 +12,7 @@ import {
   User,
   DollarSign,
   FileText,
+  X,
 } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { createCustomer } from "@/utils/customers-helper";
@@ -26,6 +28,8 @@ export default function NewShipmentPage() {
   // بيانات العميل الحالي (لازمة عشان نبعتها للفورم العادي ولمكون الرفع الجماعي)
   const [customer, setCustomer] = useState<{ id: string } | null>(null);
   const [customerLoading, setCustomerLoading] = useState(true);
+
+  const [showBulkImport, setShowBulkImport] = useState(false);
 
   const [form, setForm] = useState({
     receiverName: "",
@@ -74,6 +78,14 @@ export default function NewShipmentPage() {
     const random = Math.random().toString(36).slice(2, 7).toUpperCase();
     const time = Date.now().toString(36).toUpperCase();
     return `AS-${time}${random}`;
+  }
+
+  function handleOpenBulkImport() {
+    if (!customer) {
+      setError("تعذر ربط حسابك كعميل، برجاء تحديث الصفحة والمحاولة مرة أخرى");
+      return;
+    }
+    setShowBulkImport(true);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -153,22 +165,27 @@ export default function NewShipmentPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
-      <div className="flex items-center gap-3">
-        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-navy-900">
-          <PackagePlus className="h-5 w-5 text-white" />
-        </span>
-        <div>
-          <h1 className="font-display text-xl font-bold text-navy-950">إنشاء شحنة جديدة</h1>
-          <p className="text-sm text-gray-500">أدخل بيانات المستلم وتفاصيل الشحنة</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-navy-900">
+            <PackagePlus className="h-5 w-5 text-white" />
+          </span>
+          <div>
+            <h1 className="font-display text-xl font-bold text-navy-950">إنشاء شحنة جديدة</h1>
+            <p className="text-sm text-gray-500">أدخل بيانات المستلم وتفاصيل الشحنة</p>
+          </div>
         </div>
-      </div>
 
-      {/* رفع أكتر من شحنة دفعة واحدة من Excel */}
-      {!customerLoading && customer && (
-        <div className="mt-6">
-          <BulkImportShipments customerId={customer.id} />
-        </div>
-      )}
+        <button
+          type="button"
+          onClick={handleOpenBulkImport}
+          disabled={customerLoading}
+          className="flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-navy-800 transition hover:border-navy-300 disabled:opacity-50"
+        >
+          <FileSpreadsheet className="h-4 w-4" />
+          استيراد من Excel
+        </button>
+      </div>
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-5 rounded-2xl border border-gray-100 bg-white p-6 shadow-[var(--shadow-card)]">
         <h2 className="text-sm font-bold text-navy-950">بيانات المستلم</h2>
@@ -245,6 +262,34 @@ export default function NewShipmentPage() {
           {loading ? "جارٍ إنشاء الشحنة..." : "إنشاء الشحنة"}
         </button>
       </form>
+
+      {showBulkImport && customer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-8">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-popover">
+            <div className="flex items-center justify-between">
+              <h3 className="font-display text-lg font-bold text-navy-950">
+                استيراد شحنات من Excel
+              </h3>
+              <button
+                onClick={() => setShowBulkImport(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mt-4">
+              <BulkImportShipments
+                customerId={customer.id}
+                onSuccess={() => {
+                  // سيبه شوية عشان يشوف رسالة النجاح، بعدين اقفل المودال
+                  setTimeout(() => setShowBulkImport(false), 1500);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

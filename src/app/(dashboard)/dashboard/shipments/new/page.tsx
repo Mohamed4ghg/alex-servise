@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   CheckCircle2,
+  FileSpreadsheet,
   Loader2,
   Package,
   Plus,
@@ -54,6 +55,7 @@ export default function CreateShipmentPage() {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [showAddCustomer, setShowAddCustomer] = useState(false);
+  const [showBulkImport, setShowBulkImport] = useState(false);
 
   const [form, setForm] = useState({
     receiverName: "",
@@ -145,6 +147,16 @@ export default function CreateShipmentPage() {
     return (touched[field] || attemptedSubmit) && !!errors[field];
   }
 
+  function handleOpenBulkImport() {
+    if (!selectedCustomer) {
+      // نفس منطق التحقق المستخدم قبل الإرسال، عشان نلفت النظر لاختيار العميل الأول
+      setTouched((t) => ({ ...t, customer: true }));
+      setAttemptedSubmit(true);
+      return;
+    }
+    setShowBulkImport(true);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitError(null);
@@ -221,18 +233,29 @@ export default function CreateShipmentPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
-      <div className="flex items-center gap-3">
-        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-navy-900">
-          <Package className="h-5 w-5 text-white" />
-        </span>
-        <div>
-          <h1 className="font-display text-xl font-bold text-navy-950">
-            إنشاء شحنة جديدة
-          </h1>
-          <p className="text-sm text-gray-500">
-            أدخل بيانات العميل والمستلم والشحنة
-          </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-navy-900">
+            <Package className="h-5 w-5 text-white" />
+          </span>
+          <div>
+            <h1 className="font-display text-xl font-bold text-navy-950">
+              إنشاء شحنة جديدة
+            </h1>
+            <p className="text-sm text-gray-500">
+              أدخل بيانات العميل والمستلم والشحنة
+            </p>
+          </div>
         </div>
+
+        <button
+          type="button"
+          onClick={handleOpenBulkImport}
+          className="flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-navy-800 transition hover:border-navy-300"
+        >
+          <FileSpreadsheet className="h-4 w-4" />
+          استيراد من Excel
+        </button>
       </div>
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-6" noValidate>
@@ -321,13 +344,6 @@ export default function CreateShipmentPage() {
             </div>
           )}
         </section>
-
-        {/* رفع أكتر من شحنة دفعة واحدة من Excel - لازم يكون العميل متختار الأول */}
-        {selectedCustomer && (
-          <section className="rounded-2xl border border-gray-100 bg-white p-5 shadow-[var(--shadow-card)]">
-            <BulkImportShipments customerId={selectedCustomer.id} />
-          </section>
-        )}
 
         {/* بيانات المستلم */}
         <section className="rounded-2xl border border-gray-100 bg-white p-5 shadow-[var(--shadow-card)]">
@@ -454,6 +470,38 @@ export default function CreateShipmentPage() {
             setShowAddCustomer(false);
           }}
         />
+      )}
+
+      {showBulkImport && selectedCustomer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-8">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-popover">
+            <div className="flex items-center justify-between">
+              <h3 className="font-display text-lg font-bold text-navy-950">
+                استيراد شحنات من Excel
+              </h3>
+              <button
+                onClick={() => setShowBulkImport(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <p className="mt-1 text-xs text-gray-500">
+              الشحنات هتتسجل باسم العميل: {customerLabel(selectedCustomer)}
+            </p>
+
+            <div className="mt-4">
+              <BulkImportShipments
+                customerId={selectedCustomer.id}
+                onSuccess={() => {
+                  // سيبه شوية عشان يشوف رسالة النجاح، بعدين اقفل المودال
+                  setTimeout(() => setShowBulkImport(false), 1500);
+                }}
+              />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -32,6 +32,16 @@ type ParsedRow = {
   errors: string[];
 };
 
+// بيشيل المسافات العادية + المسافات والرموز المخفية (zero-width, BOM..) اللي بتيجي أحيانًا من ملفات إكسل
+function normalizeHeader(s: unknown) {
+  return String(s ?? "")
+    .replace(/[\u200B-\u200F\uFEFF\u00A0]/g, "")
+    .trim();
+}
+
+// رقم موبايل مصري: يبدأ بـ 01 ويتبعه 9 أرقام (11 رقم بالظبط)، أرقام فقط
+const EGYPT_PHONE_REGEX = /^01\d{9}$/;
+
 function generateTrackingNumber() {
   const random = Math.random().toString(36).slice(2, 7).toUpperCase();
   const time = Date.now().toString(36).toUpperCase();
@@ -42,8 +52,24 @@ function generateTrackingNumber() {
  * استيراد شحنات دفعة واحدة من ملف Excel.
  * قابل للاستخدام في صفحة العميل (بيبعت customerId بتاعه هو) أو صفحة الأدمن
  * (الأدمن بيختار العميل الأول من قائمة، وبيبعت الـid بتاعه هنا).
+ *
+ * onSuccess (اختياري): بيتنفذ بعد نجاح رفع الشحنات في قاعدة البيانات.
+ * مفيد لو الصفحة اللي بتستخدم الكومبوننت عايزة تعمل حاجة بعد النجاح،
+ * زي قفل مودال أو عمل refresh لقائمة الشحنات.
+ *
+ * ملاحظة: لو الجدول shipments عنده default value لعمود id (زي gen_random_uuid())
+ * وعمود tracking_number عنده unique constraint مربوط بـ sequence أو function في
+ * الداتابيز، يفضل تشيل توليد id/tracking_number من هنا خالص وتسيبهم للداتابيز
+ * عشان تضمن عدم التصادم. التوليد هنا (Date.now + Math.random) احتمال تصادمه
+ * ضعيف لكنه مش صفر.
  */
-export default function BulkImportShipments({ customerId }: { customerId: string }) {
+export default function BulkImportShipments({
+  customerId,
+  onSuccess,
+}: {
+  customerId: string;
+  onSuccess?: () => void;
+}) {
   const supabase = createClient();
 
   const [rows, setRows] = useState<ParsedRow[]>([]);
@@ -71,7 +97,8 @@ export default function BulkImportShipments({ customerId }: { customerId: string
     reader.onload = (evt) => {
       try {
         const data = evt.target?.result;
-        const workbook = XLSX.read(data, { type: "binary" });
+        // ArrayBuffer بدل BinaryString (الطريقة الحديثة والموصى بيها من مكتبة xlsx)
+        const workbook = XLSX.read(data, { type: "array" });
         const sheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[sheetName];
         const json = XLSX.utils.sheet_to_json(sheet, {
@@ -86,7 +113,7 @@ export default function BulkImportShipments({ customerId }: { customerId: string
           return;
         }
 
-        const headerRow = json[0].map((h) => String(h).trim());
+        const headerRow = json[0].map(normalizeHeader);
         const missingHeaders = EXPECTED_HEADERS.filter((h) => !headerRow.includes(h));
 
         if (missingHeaders.length > 0) {
@@ -103,6 +130,7 @@ export default function BulkImportShipments({ customerId }: { customerId: string
         });
 
         const parsed: ParsedRow[] = [];
+        const seenPhones = new Map<string, number>(); // phone -> أول سطر ظهر فيه
 
         for (let i = 1; i < json.length; i++) {
           const raw = json[i];
@@ -118,7 +146,17 @@ export default function BulkImportShipments({ customerId }: { customerId: string
 
           const errors: string[] = [];
           if (!receiverName) errors.push("الاسم فاضي");
-          if (!receiverPhone || receiverPhone.length !== 11) errors.push("الهاتف لازم 11 رقم");
+
+          if (!receiverPhone) {
+            errors.push("الهاتف فاضي");
+          } else if (!EGYPT_PHONE_REGEX.test(receiverPhone)) {
+            errors.push("الهاتف لازم يكون رقم مصري صحيح (01 ويتبعه 9 أرقام)");
+          } else if (seenPhones.has(receiverPhone)) {
+            errors.push(`الرقم مكرر مع صف ${seenPhones.get(receiverPhone)}`);
+          } else {
+            seenPhones.set(receiverPhone, i + 1);
+          }
+
           if (!receiverAddress) errors.push("العنوان فاضي");
           if (!receiverArea) errors.push("المدينة فاضية");
           if (!description) errors.push("نوع البضاعة فاضي");
@@ -156,7 +194,7 @@ export default function BulkImportShipments({ customerId }: { customerId: string
       setParsing(false);
     };
 
-    reader.readAsBinaryString(file);
+    reader.readAsArrayBuffer(file);
   }
 
   async function handleImport() {
@@ -196,6 +234,7 @@ export default function BulkImportShipments({ customerId }: { customerId: string
     setResult({ success: data?.length ?? records.length, failed: invalidRows.length });
     setRows([]);
     setFileName(null);
+    onSuccess?.();
   }
 
   function downloadTemplate() {
