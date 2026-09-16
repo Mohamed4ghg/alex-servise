@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   FileSpreadsheet,
   Loader2,
+  Package,
   Upload,
 } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
@@ -32,6 +33,15 @@ type ParsedRow = {
   errors: string[];
 };
 
+// شحنة اتضافت فعليًا في الداتابيز بنجاح، بنعرضها في شاشة التأكيد
+type CreatedShipment = {
+  id: string;
+  trackingNumber: string;
+  receiverName: string;
+  receiverPhone: string;
+  collectionAmount: number;
+};
+
 // بيشيل المسافات العادية + المسافات والرموز المخفية (zero-width, BOM..) اللي بتيجي أحيانًا من ملفات إكسل
 function normalizeHeader(s: unknown) {
   return String(s ?? "")
@@ -52,6 +62,9 @@ function generateTrackingNumber() {
  * استيراد شحنات دفعة واحدة من ملف Excel.
  * قابل للاستخدام في صفحة العميل (بيبعت customerId بتاعه هو) أو صفحة الأدمن
  * (الأدمن بيختار العميل الأول من قائمة، وبيبعت الـid بتاعه هنا).
+ *
+ * الملف ممكن يحتوي على أكتر من شحنة (صف = شحنة)، فبعد نجاح الرفع بنعرض
+ * شاشة تأكيد فيها كل الشحنات اللي اتضافت فعليًا مع رقم التتبع بتاعها.
  *
  * onSuccess (اختياري): بيتنفذ بعد نجاح رفع الشحنات في قاعدة البيانات.
  * مفيد لو الصفحة اللي بتستخدم الكومبوننت عايزة تعمل حاجة بعد النجاح،
@@ -77,10 +90,21 @@ export default function BulkImportShipments({
   const [parsing, setParsing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ success: number; failed: number } | null>(null);
+
+  // بعد نجاح الرفع، بنسيب الشحنات اللي اتضافت هنا عشان شاشة التأكيد
+  const [createdShipments, setCreatedShipments] = useState<CreatedShipment[] | null>(null);
+  const [failedCount, setFailedCount] = useState(0);
 
   const validRows = rows.filter((r) => r.errors.length === 0);
   const invalidRows = rows.filter((r) => r.errors.length > 0);
+
+  function resetAll() {
+    setRows([]);
+    setFileName(null);
+    setGlobalError(null);
+    setCreatedShipments(null);
+    setFailedCount(0);
+  }
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -88,7 +112,7 @@ export default function BulkImportShipments({
 
     setFileName(file.name);
     setGlobalError(null);
-    setResult(null);
+    setCreatedShipments(null);
     setRows([]);
     setParsing(true);
 
@@ -200,7 +224,7 @@ export default function BulkImportShipments({
   async function handleImport() {
     if (validRows.length === 0) return;
     setSubmitting(true);
-    setResult(null);
+    setGlobalError(null);
 
     const records = validRows.map((r) => ({
       id: `shp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -220,18 +244,27 @@ export default function BulkImportShipments({
     const { data, error: insertError } = await supabase
       .from("shipments")
       .insert(records)
-      .select("id");
+      .select("id, tracking_number, receiver_name, receiver_phone, collection_amount");
 
     setSubmitting(false);
 
     if (insertError) {
       console.error("Bulk import error:", insertError.message);
       setGlobalError("حصل خطأ أثناء رفع الشحنات، برجاء المحاولة مرة أخرى");
-      setResult({ success: 0, failed: records.length });
       return;
     }
 
-    setResult({ success: data?.length ?? records.length, failed: invalidRows.length });
+    // نعرض شاشة تأكيد فيها كل شحنة اتضافت فعليًا (ممكن يبقوا أكتر من شحنة في نفس الملف)
+    const confirmed: CreatedShipment[] = (data ?? []).map((d) => ({
+      id: d.id,
+      trackingNumber: d.tracking_number,
+      receiverName: d.receiver_name,
+      receiverPhone: d.receiver_phone,
+      collectionAmount: d.collection_amount ?? 0,
+    }));
+
+    setCreatedShipments(confirmed);
+    setFailedCount(invalidRows.length);
     setRows([]);
     setFileName(null);
     onSuccess?.();
@@ -242,6 +275,75 @@ export default function BulkImportShipments({
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "الشحنات");
     XLSX.writeFile(wb, "نموذج_استيراد_الشحنات.xlsx");
+  }
+
+  // ===== شاشة تأكيد بيانات الشحنات بعد نجاح الرفع =====
+  if (createdShipments) {
+    const totalCollection = createdShipments.reduce((sum, s) => sum + s.collectionAmount, 0);
+
+    return (
+      <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-[var(--shadow-card)]">
+        <div className="flex flex-col items-center text-center">
+          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-success-100">
+            <CheckCircle2 className="h-7 w-7 text-success-600" />
+          </span>
+          <h2 className="mt-4 font-display text-lg font-bold text-navy-950">
+            تم إنشاء {createdShipments.length} شحنة بنجاح
+          </h2>
+          {failedCount > 0 && (
+            <p className="mt-1 text-sm text-red-500">
+              {failedCount} صف اتشال ولم يتم رفعه لوجود مشكلة في بياناته
+            </p>
+          )}
+        </div>
+
+        <div className="mt-5 max-h-80 overflow-auto rounded-xl border border-gray-100">
+          <table className="w-full text-right text-xs">
+            <thead className="sticky top-0 bg-gray-50">
+              <tr>
+                <th className="px-3 py-2 font-semibold text-gray-500">رقم التتبع</th>
+                <th className="px-3 py-2 font-semibold text-gray-500">المستلم</th>
+                <th className="px-3 py-2 font-semibold text-gray-500">الهاتف</th>
+                <th className="px-3 py-2 font-semibold text-gray-500">التحصيل</th>
+              </tr>
+            </thead>
+            <tbody>
+              {createdShipments.map((s) => (
+                <tr key={s.id} className="border-t border-gray-50">
+                  <td className="px-3 py-2 font-mono font-semibold text-navy-950" dir="ltr">
+                    {s.trackingNumber}
+                  </td>
+                  <td className="px-3 py-2 font-medium text-navy-900">{s.receiverName}</td>
+                  <td className="px-3 py-2" dir="ltr">
+                    {s.receiverPhone}
+                  </td>
+                  <td className="px-3 py-2 tnum">{s.collectionAmount} ج.م</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="mt-4 flex items-center justify-between rounded-lg bg-gray-50 px-4 py-3 text-sm">
+          <span className="flex items-center gap-1.5 font-semibold text-navy-900">
+            <Package className="h-4 w-4" />
+            إجمالي عدد الشحنات
+          </span>
+          <span className="font-bold text-navy-950 tnum">{createdShipments.length}</span>
+        </div>
+        <div className="mt-2 flex items-center justify-between rounded-lg bg-gray-50 px-4 py-3 text-sm">
+          <span className="font-semibold text-navy-900">إجمالي مبلغ التحصيل</span>
+          <span className="font-bold text-red-600 tnum">{totalCollection} ج.م</span>
+        </div>
+
+        <button
+          onClick={resetAll}
+          className="mt-5 w-full rounded-lg border border-gray-200 py-2.5 text-sm font-semibold text-navy-800 transition hover:border-navy-300"
+        >
+          استيراد ملف تاني
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -262,7 +364,8 @@ export default function BulkImportShipments({
       </div>
 
       <p className="mt-2 text-xs text-gray-500">
-        الأعمدة المطلوبة في الصف الأول بنفس الأسماء: {EXPECTED_HEADERS.join(" - ")}
+        الأعمدة المطلوبة في الصف الأول بنفس الأسماء: {EXPECTED_HEADERS.join(" - ")}. ممكن
+        الملف يحتوي على أكتر من صف/شحنة في نفس الوقت.
       </p>
 
       <label className="mt-4 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-200 py-8 text-center hover:border-navy-300">
@@ -289,7 +392,7 @@ export default function BulkImportShipments({
         <div className="mt-5">
           <div className="flex flex-wrap items-center gap-3 text-xs font-semibold">
             <span className="rounded-full bg-success-50 px-3 py-1 text-success-700">
-              {validRows.length} صف سليم
+              {validRows.length} صف سليم (شحنة)
             </span>
             {invalidRows.length > 0 && (
               <span className="rounded-full bg-red-50 px-3 py-1 text-red-600">
@@ -341,15 +444,11 @@ export default function BulkImportShipments({
             className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-red-600 py-3 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-50"
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            {submitting ? "جاري رفع الشحنات..." : `رفع ${validRows.length} شحنة`}
+            {submitting
+              ? "جاري رفع الشحنات..."
+              : `تأكيد ورفع ${validRows.length} شحنة`}
           </button>
         </div>
-      )}
-
-      {result && (
-        <p className="mt-4 flex items-center gap-1.5 text-sm font-semibold text-success-700">
-          <CheckCircle2 className="h-4 w-4" /> تم رفع {result.success} شحنة بنجاح
-        </p>
       )}
     </div>
   );
