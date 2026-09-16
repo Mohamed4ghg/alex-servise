@@ -9,6 +9,7 @@ import {
   Copy,
   Loader2,
   MapPin,
+  Printer,
   QrCode,
   User,
   UserRound,
@@ -398,6 +399,14 @@ function ShipmentDetailsContent({ id }: { id: string }) {
             >
               <Copy className="h-4 w-4" />
             </button>
+            <Link
+              href={`/dashboard/shipments/${shipment.id}/label`}
+              className="flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-500 hover:border-navy-300 hover:text-navy-900"
+              title="طباعة ملصق الشحنة"
+            >
+              <Printer className="h-3.5 w-3.5" />
+              طباعة الملصق
+            </Link>
           </div>
           <p className="mt-1 text-sm text-gray-500">
             تم الإنشاء في {new Date(shipment.created_at).toLocaleDateString("ar-EG")}
