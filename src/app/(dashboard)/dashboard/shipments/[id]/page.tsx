@@ -116,6 +116,10 @@ type Shipment = {
   expected_delivery_date: string | null;
   timeline: TimelineEvent[] | null;
   created_at: string;
+  // التوكن المشفر بتاع الشحنة — ده اللي بيتطبع كـ QR على الملصق، مش رقم التتبع
+  qr_token: string;
+  delivered_at: string | null;
+  delivered_by: string | null;
   customer: Customer | null;
   agent: Agent | null;
 };
@@ -176,7 +180,7 @@ function ShipmentDetailsContent({ id }: { id: string }) {
         `id, tracking_number, customer_id, agent_id, receiver_name, receiver_phone,
          receiver_address, receiver_area, receiver_notes, type, description,
          weight_kg, pieces_count, value, collection_amount, status, priority,
-         expected_delivery_date, timeline, created_at,
+         expected_delivery_date, timeline, created_at, qr_token, delivered_at, delivered_by,
          customer:customers(id, full_name, company_name, customer_type, phone, address, area),
          agent:agents(id, name, phone, area)`
       )
@@ -199,18 +203,25 @@ function ShipmentDetailsContent({ id }: { id: string }) {
     const shipmentData = data as unknown as Shipment;
     setShipment(shipmentData);
 
-    // موقع المندوب الحي (آخر تحديث)
+    // موقع المندوب الحي — بيتقرا مباشرة من جدول agents (lat/lng/last_seen)
+    // ملحوظة: جدول اسمه "agent_locations" مش موجود في الداتابيز، ده كان بيرجع فاضي دايماً
     if (shipmentData.agent_id) {
-      const { data: locData } = await supabase
-        .from("agent_locations")
-        .select("latitude, longitude, heading, updated_at")
-        .eq("agent_id", shipmentData.agent_id)
-        .order("updated_at", { ascending: false })
-        .limit(1)
+      const { data: agentRow } = await supabase
+        .from("agents")
+        .select("lat, lng, last_seen")
+        .eq("id", shipmentData.agent_id)
         .maybeSingle();
 
-      if (locData) setAgentLocation(locData as AgentLocation);
-      else setAgentLocation(null);
+      if (agentRow && agentRow.lat != null && agentRow.lng != null) {
+        setAgentLocation({
+          latitude: Number(agentRow.lat),
+          longitude: Number(agentRow.lng),
+          heading: 0,
+          updated_at: agentRow.last_seen,
+        } as AgentLocation);
+      } else {
+        setAgentLocation(null);
+      }
     } else {
       setAgentLocation(null);
     }
@@ -260,9 +271,15 @@ function ShipmentDetailsContent({ id }: { id: string }) {
     };
     const updatedTimeline = [...(shipment.timeline ?? []), newEvent];
 
+    // لما الحالة الجديدة "تم التسليم" بنسجل توقيت التسليم الفعلي ومين اللي سلّم
+    const extraFields =
+      newStatus === "delivered"
+        ? { delivered_at: now.toISOString(), delivered_by: shipment.agent_id }
+        : {};
+
     const { error: updateError } = await supabase
       .from("shipments")
-      .update({ status: newStatus, timeline: updatedTimeline })
+      .update({ status: newStatus, timeline: updatedTimeline, ...extraFields })
       .eq("id", shipment.id);
 
     if (updateError) {
@@ -292,7 +309,7 @@ function ShipmentDetailsContent({ id }: { id: string }) {
     handleStatusChange(key);
   }
 
-  // بتتنادى لما المودال يمسح كود ومطابق لرقم تتبع الشحنة
+  // بتتنادى لما المودال يمسح كود ومطابق للتوكن المشفر بتاع الشحنة
   function handleDeliveryConfirmed() {
     setScanModalOpen(false);
     handleStatusChange("delivered");
@@ -421,6 +438,12 @@ function ShipmentDetailsContent({ id }: { id: string }) {
                 label="الأولوية"
                 value={shipment.priority ? priorityLabels[shipment.priority] ?? shipment.priority : "—"}
               />
+              {shipment.delivered_at && (
+                <Stat
+                  label="وقت التسليم الفعلي"
+                  value={new Date(shipment.delivered_at).toLocaleString("ar-EG")}
+                />
+              )}
             </div>
           </InfoCard>
 
@@ -521,7 +544,7 @@ function ShipmentDetailsContent({ id }: { id: string }) {
               ))}
             </div>
             <p className="mt-2 text-[11px] text-gray-400">
-              "تم التسليم" بيفتح كاميرا لمسح كود الشحنة قبل ما يتأكد التحديث.
+              "تم التسليم" بيفتح كاميرا لمسح كود الشحنة المطبوع على الملصق قبل ما يتأكد التحديث.
             </p>
           </div>
 
@@ -549,7 +572,9 @@ function ShipmentDetailsContent({ id }: { id: string }) {
 
       {scanModalOpen && (
         <QrScanModal
-          expectedCode={shipment.tracking_number}
+          // بنقارن بالتوكن المشفر (qr_token) المطبوع على ملصق الشحنة، مش برقم التتبع الظاهر للجميع
+          expectedCode={shipment.qr_token}
+          trackingNumber={shipment.tracking_number}
           onClose={() => setScanModalOpen(false)}
           onConfirmed={handleDeliveryConfirmed}
         />
@@ -560,15 +585,17 @@ function ShipmentDetailsContent({ id }: { id: string }) {
 
 // ============================================================
 // مودال مسح كود QR لتأكيد التسليم
-// بيفتح كاميرا المتصفح، ويقارن الكود اللي اتصور برقم تتبع الشحنة
+// بيفتح كاميرا المتصفح، ويقارن الكود اللي اتصور بالتوكن المشفر (qr_token) للشحنة
 // ============================================================
 
 function QrScanModal({
   expectedCode,
+  trackingNumber,
   onClose,
   onConfirmed,
 }: {
   expectedCode: string;
+  trackingNumber: string;
   onClose: () => void;
   onConfirmed: () => void;
 }) {
@@ -600,7 +627,7 @@ function QrScanModal({
               scanner.stop().catch(() => {});
               onConfirmed();
             } else {
-              setScanError("الكود اللي اتصور مش مطابق لرقم الشحنة، راجع الملصق وحاول تاني");
+              setScanError("الكود اللي اتصور مش مطابق لكود الشحنة، راجع الملصق وحاول تاني");
               // نسيب الكاميرا شغالة عشان يحاول يمسح تاني
               setTimeout(() => {
                 handledRef.current = false;
@@ -640,7 +667,7 @@ function QrScanModal({
 
         <p className="mt-2 text-xs text-gray-500">
           وجّه الكاميرا على كود QR المطبوع على ملصق الشحنة رقم{" "}
-          <span className="font-semibold text-navy-900 tnum">{expectedCode}</span>
+          <span className="font-semibold text-navy-900 tnum">{trackingNumber}</span>
         </p>
 
         <div id={containerId} className="mt-4 overflow-hidden rounded-xl bg-black" />
