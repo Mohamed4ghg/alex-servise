@@ -209,26 +209,23 @@ h1, h2, h3, h4, h5, h6 {
   animation: truck-peek-left 6s cubic-bezier(0.22, 1, 0.36, 0.98) both;
 }
 
+/*
+  FIXED for LCP: previously used opacity:0 + clip-path (fully hidden) over 3s,
+  which delayed Largest Contentful Paint until the element became visible.
+  Now uses a fast opacity/transform reveal only — no clip-path, no long hidden state.
+*/
 @keyframes gps-draw {
   0% {
-    clip-path: inset(100% 0 0 0);
     opacity: 0;
-    transform: translateY(30px);
+    transform: translateY(20px);
   }
-
-  15% {
-    opacity: 1;
-  }
-
   100% {
-    clip-path: inset(0 0 0 0);
     opacity: 1;
     transform: translateY(0);
   }
 }
-
 .animate-gps-draw {
-  animation: gps-draw 3s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: gps-draw 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 /* حركة مستمرة لفوق وتحت لصور الـ GPS طول ما الصفحة مفتوحة */

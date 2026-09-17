@@ -11,8 +11,14 @@ import {
 export function Hero() {
   return (
     <section className="relative overflow-hidden bg-navy-950">
-      <div className="pointer-events-none absolute -left-40 top-1/3 h-96 w-96 rounded-full bg-red-600/20 blur-[110px]" />
-      <div className="pointer-events-none absolute -right-32 -top-20 h-80 w-80 rounded-full bg-navy-500/30 blur-[110px]" />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -left-40 top-1/3 h-96 w-96 rounded-full bg-red-600/20 blur-[110px]"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -right-32 -top-20 h-80 w-80 rounded-full bg-navy-500/30 blur-[110px]"
+      />
 
       <div className="relative mx-auto grid max-w-7xl gap-14 px-4 py-20 sm:px-6 lg:grid-cols-2 lg:items-center lg:px-8 lg:pt-28 lg:pb-8">
         <div className="animate-fade-up">
@@ -27,10 +33,10 @@ export function Hero() {
 
           <p className="mt-2 font-display text-xl font-bold text-navy-100 sm:text-2xl">
             <span className="text-white">أسهل</span>{" "}
-           <span className="text-white-500">··</span>{" "}
-           <span className="text-red-500">أسرع</span>{" "}
-           <span className="text-white-500">··</span>{" "}
-           <span className="text-white">أدق</span>
+            <span className="text-navy-300">··</span>{" "}
+            <span className="text-red-500">أسرع</span>{" "}
+            <span className="text-navy-300">··</span>{" "}
+            <span className="text-white">أدق</span>
           </p>
 
           <p className="mt-5 max-w-xl text-base leading-8 text-navy-100 sm:text-lg">
@@ -87,7 +93,7 @@ export function Hero() {
 function TrackingShowcase() {
   return (
     <div className="relative mx-auto w-full max-w-4xl pt-20 pb-0">
-      {/* GPS يمين - خلف اللاب والموبايل */}
+      {/* GPS يمين - خلف اللاب والموبايل — عنصر زخرفي، مش هو الـ LCP فمالوش priority */}
       <div className="animate-gps-float pointer-events-none absolute -right-7 bottom-14 z-10 w-[70%]">
         <div className="animate-gps-draw">
           <Image
@@ -95,13 +101,13 @@ function TrackingShowcase() {
             alt=""
             width={700}
             height={700}
+            sizes="(max-width: 1024px) 60vw, 400px"
             className="h-auto w-full object-contain"
-            priority
           />
         </div>
       </div>
 
-      {/* GPS شمال - خلف اللاب والموبايل */}
+      {/* GPS شمال - خلف اللاب والموبايل — عنصر زخرفي، مش هو الـ LCP فمالوش priority */}
       <div className="animate-gps-float pointer-events-none absolute -left-8 bottom-8 z-10 w-[55%]">
         <div className="animate-gps-draw">
           <Image
@@ -109,25 +115,26 @@ function TrackingShowcase() {
             alt=""
             width={700}
             height={700}
+            sizes="(max-width: 1024px) 45vw, 320px"
             className="h-auto w-full object-contain"
-            priority
           />
         </div>
       </div>
 
-      {/* اللاب والموبايل */}
+      {/* اللاب والموبايل — دي أكبر وأوضح صورة في الـ hero، وهي على الأغلب عنصر LCP الفعلي */}
       <div className="relative z-30">
         <Image
           src="/images/lap.png"
           alt="لوحة تحكم ALEX Service على اللابتوب والموبايل"
           width={560}
           height={400}
+          sizes="(max-width: 1024px) 90vw, 560px"
           className="mx-auto h-auto w-full max-w-[1000px]"
           priority
         />
       </div>
 
-      {/* التراك */}
+      {/* التراك — عنصر زخرفي صغير، مش محتاج priority */}
       <div className="animate-truck-loop absolute bottom-8 left-[-6%] z-20 w-[38%] sm:left-[-26%]">
         <div className="animate-truck-peek-left">
           <Image
@@ -135,8 +142,8 @@ function TrackingShowcase() {
             alt="عربية توصيل ALEX Service"
             width={280}
             height={200}
+            sizes="(max-width: 1024px) 38vw, 260px"
             className="h-auto w-full drop-shadow-2xl"
-            priority
           />
         </div>
       </div>
