@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Mail, MapPin, Phone } from "lucide-react";
+import { Mail, MapPin, Phone, MessageCircle } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
 
 /** Lightweight brand marks (lucide-react no longer ships logo icons). */
@@ -24,6 +24,12 @@ const SocialIcons = {
   ),
 };
 
+const SOCIAL_LINKS = [
+  { Icon: SocialIcons.Facebook, href: "https://facebook.com/Alexservicek21" },
+  { Icon: SocialIcons.Instagram, href: "#" },
+  { Icon: SocialIcons.Youtube, href: "#" },
+];
+
 export function Footer() {
   return (
     <footer id="about" className="border-t border-gray-100 bg-navy-50/60">
@@ -35,42 +41,82 @@ export function Footer() {
               منصة متكاملة لإدارة الشحن والتوصيل، تربط المكتب والمندوبين والعملاء في نظام واحد.
             </p>
             <div className="mt-5 flex items-center gap-3">
-              {[SocialIcons.Facebook, SocialIcons.Instagram, SocialIcons.Youtube].map((Icon, i) => (
-                <a
-                  key={i}
-                  href="#"
-                  className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition hover:border-red-200 hover:text-red-600"
-                >
-                  <Icon className="h-4 w-4" />
-                </a>
-              ))}
+              {SOCIAL_LINKS.map(({ Icon, href }, i) => {
+                return (
+                  <a
+                    key={i}
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition hover:border-red-200 hover:text-red-600"
+                  >
+                    <Icon className="h-4 w-4" />
+                  </a>
+                );
+              })}
             </div>
           </div>
 
           <div>
             <h4 className="font-display text-sm font-bold text-navy-950">روابط سريعة</h4>
             <ul className="mt-4 space-y-2.5 text-sm text-gray-500">
-              <li><a href="#features" className="hover:text-navy-900">المميزات</a></li>
-              <li><a href="#how-it-works" className="hover:text-navy-900">كيف نعمل؟</a></li>
-              <li><Link href="/tracking" className="hover:text-navy-900">تتبع شحنتك</Link></li>
-              <li><Link href="/login" className="hover:text-navy-900">تسجيل الدخول</Link></li>
+              <li>
+                <a href="#features" className="hover:text-navy-900">المميزات</a>
+              </li>
+              <li>
+                <a href="#how-it-works" className="hover:text-navy-900">كيف نعمل؟</a>
+              </li>
+              <li>
+                <Link href="/tracking" className="hover:text-navy-900">تتبع شحنتك</Link>
+              </li>
+              <li>
+                <Link href="/login" className="hover:text-navy-900">تسجيل الدخول</Link>
+              </li>
             </ul>
           </div>
 
           <div>
             <h4 className="font-display text-sm font-bold text-navy-950">قانوني</h4>
             <ul className="mt-4 space-y-2.5 text-sm text-gray-500">
-              <li><a href="#" className="hover:text-navy-900">سياسة الخصوصية</a></li>
-              <li><a href="#" className="hover:text-navy-900">الشروط والأحكام</a></li>
+              <li>
+                <a href="#" className="hover:text-navy-900">سياسة الخصوصية</a>
+              </li>
+              <li>
+                <a href="#" className="hover:text-navy-900">الشروط والأحكام</a>
+              </li>
             </ul>
           </div>
 
           <div>
             <h4 className="font-display text-sm font-bold text-navy-950">تواصل معنا</h4>
             <ul className="mt-4 space-y-3 text-sm text-gray-500">
-              <li className="flex items-center gap-2"><Phone className="h-4 w-4 text-red-600" /> 19XXX</li>
-              <li className="flex items-center gap-2"><Mail className="h-4 w-4 text-red-600" /> support@alexservice.com</li>
-              <li className="flex items-center gap-2"><MapPin className="h-4 w-4 text-red-600" /> الإسكندرية، مصر</li>
+              <li className="flex items-center gap-2">
+                <Phone className="h-4 w-4 text-red-600" />
+                <a href="tel:01041087015" className="hover:text-navy-900">01041087015</a>
+              </li>
+              <li className="flex items-center gap-2 ps-6">
+                <a href="tel:01041087016" className="hover:text-navy-900">01041087016</a>
+              </li>
+              <li className="flex items-center gap-2">
+                <MessageCircle className="h-4 w-4 text-red-600" />
+                <a
+                  href="https://wa.me/2001144661239"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-navy-900"
+                >
+                  01144661239
+                </a>
+              </li>
+              <li className="flex items-center gap-2">
+                <Mail className="h-4 w-4 text-red-600" />
+                <a href="mailto:Alexservicek21@gmail.com" className="hover:text-navy-900">
+                  Alexservicek21@gmail.com
+                </a>
+              </li>
+              <li className="flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-red-600" /> الإسكندرية، مصر
+              </li>
             </ul>
           </div>
         </div>
