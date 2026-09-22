@@ -39,7 +39,7 @@ const ACCOUNT_TYPES: {
   title: string;
   icon: React.ElementType;
 }[] = [
-  { value: "buyer", title: "مشتري", icon: ShoppingBag },
+  { value: "buyer", title: "عميل", icon: ShoppingBag },
   { value: "agent", title: "مندوب توصيل", icon: Truck },
 ];
 
