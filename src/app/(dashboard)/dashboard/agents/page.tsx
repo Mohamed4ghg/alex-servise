@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Eye, Package, Phone, Plus, Search, TrendingUp, Wallet } from "lucide-react";
+import { Eye, Package, Phone, Plus, Search, TrendingUp, Wallet, X } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { AgentStatusBadge } from "@/components/ui/StatusBadge";
 import type { AgentStatus } from "@/lib/types";
@@ -65,6 +65,14 @@ function mapAgent(row: any): Agent {
   };
 }
 
+function initialsFromName(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) return "؟";
+  const parts = trimmed.split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2);
+  return (parts[0][0] ?? "") + (parts[1][0] ?? "");
+}
+
 export default function AgentsPage() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,25 +80,34 @@ export default function AgentsPage() {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Agent | null>(null);
 
+  // --- Add agent modal state ---
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [formName, setFormName] = useState("");
+  const [formPhone, setFormPhone] = useState("");
+  const [formArea, setFormArea] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  async function fetchAgents() {
+    const supabase = createClient();
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("agents")
+      .select("*")
+      .order("name", { ascending: true });
+
+    if (error) {
+      setError(error.message);
+    } else {
+      const mapped = (data ?? []).map(mapAgent);
+      setAgents(mapped);
+      setSelected((prev) => mapped.find((a) => a.id === prev?.id) ?? mapped[0] ?? null);
+    }
+    setLoading(false);
+  }
+
   useEffect(() => {
     const supabase = createClient();
-
-    async function fetchAgents() {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from("agents")
-        .select("*")
-        .order("name", { ascending: true });
-
-      if (error) {
-        setError(error.message);
-      } else {
-        const mapped = (data ?? []).map(mapAgent);
-        setAgents(mapped);
-        setSelected((prev) => mapped.find((a) => a.id === prev?.id) ?? mapped[0] ?? null);
-      }
-      setLoading(false);
-    }
 
     fetchAgents();
 
@@ -108,9 +125,146 @@ export default function AgentsPage() {
     };
   }, []);
 
+  function resetForm() {
+    setFormName("");
+    setFormPhone("");
+    setFormArea("");
+    setFormError(null);
+  }
+
+  function openAddModal() {
+    resetForm();
+    setShowAddModal(true);
+  }
+
+  function closeAddModal() {
+    if (submitting) return;
+    setShowAddModal(false);
+    resetForm();
+  }
+
+  async function handleAddAgent(e: React.FormEvent) {
+    e.preventDefault();
+
+    if (!formName.trim()) {
+      setFormError("اسم المندوب مطلوب");
+      return;
+    }
+
+    setSubmitting(true);
+    setFormError(null);
+
+    const supabase = createClient();
+    const newId = `AGT-${Date.now()}`;
+
+    const { error: insertError } = await supabase.from("agents").insert({
+      id: newId,
+      name: formName.trim(),
+      phone: formPhone.trim() || null,
+      area: formArea.trim() || null,
+      avatar: initialsFromName(formName),
+      status: "offline",
+    });
+
+    setSubmitting(false);
+
+    if (insertError) {
+      // e.g. "new row violates row-level security policy" means the
+      // logged-in user isn't admin/staff according to public.profiles.role
+      setFormError(insertError.message);
+      return;
+    }
+
+    setShowAddModal(false);
+    resetForm();
+    fetchAgents();
+  }
+
   const filtered = agents.filter(
     (a) => a.name.includes(search) || (a.area ?? "").includes(search)
   );
+
+  const addButton = (
+    <button
+      onClick={openAddModal}
+      className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm shadow-red-600/20 hover:bg-red-700"
+    >
+      <Plus className="h-3.5 w-3.5" /> إضافة مندوب
+    </button>
+  );
+
+  const addModal = showAddModal ? (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="font-display text-base font-bold text-navy-950">إضافة مندوب جديد</h2>
+          <button
+            onClick={closeAddModal}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            type="button"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <form onSubmit={handleAddAgent} className="space-y-3">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-500">الاسم *</label>
+            <input
+              value={formName}
+              onChange={(e) => setFormName(e.target.value)}
+              className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:border-navy-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-navy-100"
+              placeholder="اسم المندوب"
+              autoFocus
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-500">رقم الهاتف</label>
+            <input
+              value={formPhone}
+              onChange={(e) => setFormPhone(e.target.value)}
+              className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:border-navy-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-navy-100"
+              placeholder="01xxxxxxxxx"
+              dir="ltr"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-500">المنطقة</label>
+            <input
+              value={formArea}
+              onChange={(e) => setFormArea(e.target.value)}
+              className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:border-navy-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-navy-100"
+              placeholder="مثال: دقهلية"
+            />
+          </div>
+
+          {formError && (
+            <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{formError}</p>
+          )}
+
+          <div className="flex gap-2 pt-1">
+            <button
+              type="button"
+              onClick={closeAddModal}
+              disabled={submitting}
+              className="flex-1 rounded-lg border border-gray-200 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+            >
+              إلغاء
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="flex-1 rounded-lg bg-navy-900 py-2.5 text-sm font-semibold text-white hover:bg-navy-800 disabled:opacity-60"
+            >
+              {submitting ? "جاري الإضافة..." : "إضافة"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  ) : null;
 
   if (loading) {
     return <div className="p-8 text-center text-sm text-gray-400">جاري تحميل بيانات المندوبين...</div>;
@@ -126,15 +280,12 @@ export default function AgentsPage() {
         <PageHeader
           title="إدارة المندوبين"
           subtitle="0 مندوب مسجّل بالنظام"
-          actions={
-            <button className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm shadow-red-600/20 hover:bg-red-700">
-              <Plus className="h-3.5 w-3.5" /> إضافة مندوب
-            </button>
-          }
+          actions={addButton}
         />
         <div className="rounded-2xl border border-gray-100 bg-white p-8 text-center text-sm text-gray-400 shadow-[var(--shadow-card)]">
           لا يوجد مندوبين مسجّلين بعد.
         </div>
+        {addModal}
       </div>
     );
   }
@@ -144,11 +295,7 @@ export default function AgentsPage() {
       <PageHeader
         title="إدارة المندوبين"
         subtitle={`${agents.length} مندوب مسجّل بالنظام`}
-        actions={
-          <button className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm shadow-red-600/20 hover:bg-red-700">
-            <Plus className="h-3.5 w-3.5" /> إضافة مندوب
-          </button>
-        }
+        actions={addButton}
       />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -262,6 +409,8 @@ export default function AgentsPage() {
           </button>
         </div>
       </div>
+
+      {addModal}
     </div>
   );
 }
