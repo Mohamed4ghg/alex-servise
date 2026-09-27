@@ -148,12 +148,6 @@ export default function CreateShipmentPage() {
   }
 
   function handleOpenBulkImport() {
-    if (!selectedCustomer) {
-      // نفس منطق التحقق المستخدم قبل الإرسال، عشان نلفت النظر لاختيار العميل الأول
-      setTouched((t) => ({ ...t, customer: true }));
-      setAttemptedSubmit(true);
-      return;
-    }
     setShowBulkImport(true);
   }
 
@@ -472,7 +466,7 @@ export default function CreateShipmentPage() {
         />
       )}
 
-      {showBulkImport && selectedCustomer && (
+      {showBulkImport && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-8">
           <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-popover">
             <div className="flex items-center justify-between">
@@ -487,13 +481,8 @@ export default function CreateShipmentPage() {
               </button>
             </div>
 
-            <p className="mt-1 text-xs text-gray-500">
-              الشحنات هتتسجل باسم العميل: {customerLabel(selectedCustomer)}
-            </p>
-
             <div className="mt-4">
               <BulkImportShipments
-                customerId={selectedCustomer.id}
                 onSuccess={() => {
                   // سيبه شوية عشان يشوف رسالة النجاح، بعدين اقفل المودال
                   setTimeout(() => setShowBulkImport(false), 1500);

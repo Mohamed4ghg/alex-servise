@@ -11,9 +11,14 @@ import {
   Upload,
 } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
+import { createCustomer } from "@/utils/customers-helper";
 
 // نفس ترتيب وأسماء الأعمدة المتوقعة في الشيت بالظبط (الصف الأول = العناوين)
+// أضفنا عمودي "اسم العميل" و"رقم هاتف العميل" عشان الاستيراد يقدر يحدد/ينشئ
+// العميل بنفسه من غير ما يتطلب اختيار عميل من الواجهة الأول
 const EXPECTED_HEADERS = [
+  "اسم العميل",
+  "رقم هاتف العميل",
   "اسم المستلم",
   "رقم الهاتف",
   "العنوان",
@@ -24,6 +29,8 @@ const EXPECTED_HEADERS = [
 
 type ParsedRow = {
   rowNumber: number;
+  customerName: string;
+  customerPhone: string;
   receiverName: string;
   receiverPhone: string;
   receiverAddress: string;
@@ -60,15 +67,16 @@ function generateTrackingNumber() {
 
 /**
  * استيراد شحنات دفعة واحدة من ملف Excel.
- * قابل للاستخدام في صفحة العميل (بيبعت customerId بتاعه هو) أو صفحة الأدمن
- * (الأدمن بيختار العميل الأول من قائمة، وبيبعت الـid بتاعه هنا).
  *
- * الملف ممكن يحتوي على أكتر من شحنة (صف = شحنة)، فبعد نجاح الرفع بنعرض
- * شاشة تأكيد فيها كل الشحنات اللي اتضافت فعليًا مع رقم التتبع بتاعها.
+ * كل صف في الشيت بيحتوي على بيانات العميل (اسمه ورقم هاتفه) بجانب بيانات
+ * المستلم، فمش لازم تختار عميل من الواجهة قبل الاستيراد. بيانات العميل
+ * بتتقرا من الشيت مباشرة: لو رقم الهاتف موجود بالفعل في جدول customers
+ * بيتم استخدام نفس العميل، ولو مش موجود بيتعمل عميل جديد تلقائيًا.
+ *
+ * customerId (اختياري، للتوافق مع استخدام قديم): لو اتبعت، كل الشحنات
+ * هتتسجل باسم العميل ده على طول من غير ما تدور على بيانات العميل في الشيت.
  *
  * onSuccess (اختياري): بيتنفذ بعد نجاح رفع الشحنات في قاعدة البيانات.
- * مفيد لو الصفحة اللي بتستخدم الكومبوننت عايزة تعمل حاجة بعد النجاح،
- * زي قفل مودال أو عمل refresh لقائمة الشحنات.
  *
  * ملاحظة: لو الجدول shipments عنده default value لعمود id (زي gen_random_uuid())
  * وعمود tracking_number عنده unique constraint مربوط بـ sequence أو function في
@@ -80,7 +88,7 @@ export default function BulkImportShipments({
   customerId,
   onSuccess,
 }: {
-  customerId: string;
+  customerId?: string;
   onSuccess?: () => void;
 }) {
   const supabase = createClient();
@@ -90,6 +98,7 @@ export default function BulkImportShipments({
   const [parsing, setParsing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
+  const [importStage, setImportStage] = useState<string | null>(null);
 
   // بعد نجاح الرفع، بنسيب الشحنات اللي اتضافت هنا عشان شاشة التأكيد
   const [createdShipments, setCreatedShipments] = useState<CreatedShipment[] | null>(null);
@@ -104,6 +113,7 @@ export default function BulkImportShipments({
     setGlobalError(null);
     setCreatedShipments(null);
     setFailedCount(0);
+    setImportStage(null);
   }
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -138,7 +148,14 @@ export default function BulkImportShipments({
         }
 
         const headerRow = json[0].map(normalizeHeader);
-        const missingHeaders = EXPECTED_HEADERS.filter((h) => !headerRow.includes(h));
+
+        // لو الملف اتبعت مع customerId جاهز (استخدام قديم)، أعمدة العميل
+        // مش مطلوبة في الشيت
+        const requiredHeaders = customerId
+          ? EXPECTED_HEADERS.filter((h) => h !== "اسم العميل" && h !== "رقم هاتف العميل")
+          : EXPECTED_HEADERS;
+
+        const missingHeaders = requiredHeaders.filter((h) => !headerRow.includes(h));
 
         if (missingHeaders.length > 0) {
           setGlobalError(
@@ -149,17 +166,23 @@ export default function BulkImportShipments({
         }
 
         const colIndex: Record<string, number> = {};
-        EXPECTED_HEADERS.forEach((h) => {
+        requiredHeaders.forEach((h) => {
           colIndex[h] = headerRow.indexOf(h);
         });
 
         const parsed: ParsedRow[] = [];
-        const seenPhones = new Map<string, number>(); // phone -> أول سطر ظهر فيه
+        const seenReceiverPhones = new Map<string, number>(); // رقم المستلم -> أول سطر ظهر فيه
 
         for (let i = 1; i < json.length; i++) {
           const raw = json[i];
           if (!raw || raw.every((c) => !String(c ?? "").trim())) continue; // سطر فاضي بالكامل، نتجاهله
 
+          const customerName = customerId
+            ? ""
+            : String(raw[colIndex["اسم العميل"]] ?? "").trim();
+          const customerPhone = customerId
+            ? ""
+            : String(raw[colIndex["رقم هاتف العميل"]] ?? "").trim();
           const receiverName = String(raw[colIndex["اسم المستلم"]] ?? "").trim();
           const receiverPhone = String(raw[colIndex["رقم الهاتف"]] ?? "").trim();
           const receiverAddress = String(raw[colIndex["العنوان"]] ?? "").trim();
@@ -169,16 +192,26 @@ export default function BulkImportShipments({
           const collectionAmount = Number(collectionRaw);
 
           const errors: string[] = [];
-          if (!receiverName) errors.push("الاسم فاضي");
+
+          if (!customerId) {
+            if (!customerName) errors.push("اسم العميل فاضي");
+            if (!customerPhone) {
+              errors.push("رقم هاتف العميل فاضي");
+            } else if (!EGYPT_PHONE_REGEX.test(customerPhone)) {
+              errors.push("رقم هاتف العميل لازم يكون رقم مصري صحيح (01 ويتبعه 9 أرقام)");
+            }
+          }
+
+          if (!receiverName) errors.push("اسم المستلم فاضي");
 
           if (!receiverPhone) {
-            errors.push("الهاتف فاضي");
+            errors.push("هاتف المستلم فاضي");
           } else if (!EGYPT_PHONE_REGEX.test(receiverPhone)) {
-            errors.push("الهاتف لازم يكون رقم مصري صحيح (01 ويتبعه 9 أرقام)");
-          } else if (seenPhones.has(receiverPhone)) {
-            errors.push(`الرقم مكرر مع صف ${seenPhones.get(receiverPhone)}`);
+            errors.push("هاتف المستلم لازم يكون رقم مصري صحيح (01 ويتبعه 9 أرقام)");
+          } else if (seenReceiverPhones.has(receiverPhone)) {
+            errors.push(`رقم المستلم مكرر مع صف ${seenReceiverPhones.get(receiverPhone)}`);
           } else {
-            seenPhones.set(receiverPhone, i + 1);
+            seenReceiverPhones.set(receiverPhone, i + 1);
           }
 
           if (!receiverAddress) errors.push("العنوان فاضي");
@@ -190,6 +223,8 @@ export default function BulkImportShipments({
 
           parsed.push({
             rowNumber: i + 1,
+            customerName,
+            customerPhone,
             receiverName,
             receiverPhone,
             receiverAddress,
@@ -226,10 +261,67 @@ export default function BulkImportShipments({
     setSubmitting(true);
     setGlobalError(null);
 
+    // خريطة رقم هاتف العميل -> customer_id، عشان لو أكتر من صف بنفس رقم
+    // العميل (يعني نفس العميل ليه أكتر من شحنة) منعملش عميل مكرر
+    const customerIdByPhone = new Map<string, string>();
+
+    if (customerId) {
+      // استخدام قديم: عميل واحد ثابت لكل الصفوف
+      validRows.forEach((r) => customerIdByPhone.set("__fixed__", customerId));
+    } else {
+      setImportStage("جاري التحقق من بيانات العملاء...");
+
+      const uniquePhones = Array.from(new Set(validRows.map((r) => r.customerPhone)));
+
+      // هات أي عملاء موجودين بالفعل بنفس الأرقام دي في نداء واحد
+      const { data: existingCustomers, error: existingError } = await supabase
+        .from("customers")
+        .select("id, phone")
+        .in("phone", uniquePhones);
+
+      if (existingError) {
+        console.error("Fetch existing customers error:", existingError.message);
+        setGlobalError("تعذر التحقق من بيانات العملاء، برجاء المحاولة مرة أخرى");
+        setSubmitting(false);
+        setImportStage(null);
+        return;
+      }
+
+      (existingCustomers ?? []).forEach((c) => {
+        if (c.phone) customerIdByPhone.set(c.phone, c.id);
+      });
+
+      // أنشئ عميل جديد لأي رقم مش موجود في الداتابيز
+      const missingPhones = uniquePhones.filter((p) => !customerIdByPhone.has(p));
+
+      for (const phone of missingPhones) {
+        const row = validRows.find((r) => r.customerPhone === phone)!;
+
+        const { customer, error: createError } = await createCustomer({
+          fullName: row.customerName,
+          phone: row.customerPhone,
+        });
+
+        if (createError || !customer) {
+          console.error("Create customer error:", createError);
+          setGlobalError(
+            `تعذر إنشاء العميل "${row.customerName}" (${row.customerPhone})، برجاء المحاولة مرة أخرى`
+          );
+          setSubmitting(false);
+          setImportStage(null);
+          return;
+        }
+
+        customerIdByPhone.set(phone, customer.id);
+      }
+    }
+
+    setImportStage("جاري إنشاء الشحنات...");
+
     const records = validRows.map((r) => ({
       id: `shp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       tracking_number: generateTrackingNumber(),
-      customer_id: customerId,
+      customer_id: customerId ?? customerIdByPhone.get(r.customerPhone)!,
       receiver_name: r.receiverName,
       receiver_phone: r.receiverPhone,
       receiver_address: r.receiverAddress,
@@ -247,6 +339,7 @@ export default function BulkImportShipments({
       .select("id, tracking_number, receiver_name, receiver_phone, collection_amount");
 
     setSubmitting(false);
+    setImportStage(null);
 
     if (insertError) {
       console.error("Bulk import error:", insertError.message);
@@ -271,7 +364,10 @@ export default function BulkImportShipments({
   }
 
   function downloadTemplate() {
-    const ws = XLSX.utils.aoa_to_sheet([EXPECTED_HEADERS]);
+    const headers = customerId
+      ? EXPECTED_HEADERS.filter((h) => h !== "اسم العميل" && h !== "رقم هاتف العميل")
+      : EXPECTED_HEADERS;
+    const ws = XLSX.utils.aoa_to_sheet([headers]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "الشحنات");
     XLSX.writeFile(wb, "نموذج_استيراد_الشحنات.xlsx");
@@ -346,6 +442,10 @@ export default function BulkImportShipments({
     );
   }
 
+  const displayHeaders = customerId
+    ? EXPECTED_HEADERS.filter((h) => h !== "اسم العميل" && h !== "رقم هاتف العميل")
+    : EXPECTED_HEADERS;
+
   return (
     <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-[var(--shadow-card)]">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -364,8 +464,9 @@ export default function BulkImportShipments({
       </div>
 
       <p className="mt-2 text-xs text-gray-500">
-        الأعمدة المطلوبة في الصف الأول بنفس الأسماء: {EXPECTED_HEADERS.join(" - ")}. ممكن
+        الأعمدة المطلوبة في الصف الأول بنفس الأسماء: {displayHeaders.join(" - ")}. ممكن
         الملف يحتوي على أكتر من صف/شحنة في نفس الوقت.
+        {!customerId && " لو العميل مش موجود بالفعل، هيتم إنشاؤه تلقائيًا من بياناته في الشيت."}
       </p>
 
       <label className="mt-4 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-200 py-8 text-center hover:border-navy-300">
@@ -406,7 +507,10 @@ export default function BulkImportShipments({
               <thead className="sticky top-0 bg-gray-50">
                 <tr>
                   <th className="px-3 py-2 font-semibold text-gray-500">#</th>
-                  <th className="px-3 py-2 font-semibold text-gray-500">الاسم</th>
+                  {!customerId && (
+                    <th className="px-3 py-2 font-semibold text-gray-500">العميل</th>
+                  )}
+                  <th className="px-3 py-2 font-semibold text-gray-500">اسم المستلم</th>
                   <th className="px-3 py-2 font-semibold text-gray-500">الهاتف</th>
                   <th className="px-3 py-2 font-semibold text-gray-500">المدينة</th>
                   <th className="px-3 py-2 font-semibold text-gray-500">نوع البضاعة</th>
@@ -418,6 +522,16 @@ export default function BulkImportShipments({
                 {rows.map((r) => (
                   <tr key={r.rowNumber} className={r.errors.length > 0 ? "bg-red-50/50" : ""}>
                     <td className="px-3 py-2 text-gray-400">{r.rowNumber}</td>
+                    {!customerId && (
+                      <td className="px-3 py-2 text-navy-700">
+                        {r.customerName || "—"}
+                        {r.customerPhone && (
+                          <span className="block text-gray-400" dir="ltr">
+                            {r.customerPhone}
+                          </span>
+                        )}
+                      </td>
+                    )}
                     <td className="px-3 py-2 font-medium text-navy-900">{r.receiverName || "—"}</td>
                     <td className="px-3 py-2" dir="ltr">{r.receiverPhone || "—"}</td>
                     <td className="px-3 py-2">{r.receiverArea || "—"}</td>
@@ -445,7 +559,7 @@ export default function BulkImportShipments({
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
             {submitting
-              ? "جاري رفع الشحنات..."
+              ? importStage ?? "جاري رفع الشحنات..."
               : `تأكيد ورفع ${validRows.length} شحنة`}
           </button>
         </div>
