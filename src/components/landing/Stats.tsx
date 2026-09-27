@@ -55,6 +55,11 @@ function Counter({ target, suffix }: { target: number; suffix?: string }) {
 }
 
 export function Stats() {
+  // غيّر السطر ده لـ true لو عايز ترجّع القسم ده يظهر تاني
+  const SHOW_STATS = false;
+
+  if (!SHOW_STATS) return null;
+
   return (
     <section className="relative">
       <div className="animate-fade-up relative z-20 mx-auto -mt-4 max-w-7xl px-4 sm:px-6 lg:-mt-8 lg:px-8">
