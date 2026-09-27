@@ -183,7 +183,7 @@ function ShipmentDetailsContent({ id }: { id: string }) {
          weight_kg, pieces_count, value, collection_amount, status, priority,
          expected_delivery_date, timeline, created_at, qr_token, delivered_at, delivered_by,
          customer:customers(id, full_name, company_name, customer_type, phone, address, area),
-         agent:agents(id, name, phone, area)`
+         agent:agents!shipments_agent_id_fkey(id, name, phone, area)`
       )
       .eq("id", id)
       .maybeSingle();
