@@ -15,7 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
-import { createCustomer } from "@/utils/customers-helper";
+import { getOrCreateMyCustomer } from "@/utils/customers-helper";
 import BulkImportShipments from "@/components/shipments/BulkImportShipments";
 
 export default function NewShipmentPage() {
@@ -59,7 +59,9 @@ export default function NewShipmentPage() {
         .eq("id", user.id)
         .single();
 
-      const { customer: c } = await createCustomer({
+      // بتدور على سجل العميل بالـ user_id، ولو مفيش بتربط عميل موجود بنفس الرقم
+      // أو بتنشئ واحد جديد (من غير تكرار)
+      const { customer: c } = await getOrCreateMyCustomer({
         fullName: profile?.full_name ?? "عميل",
         phone: profile?.phone ?? "",
       });
@@ -279,13 +281,9 @@ export default function NewShipmentPage() {
             </div>
 
             <div className="mt-4">
-              <BulkImportShipments
-                customerId={customer.id}
-                onSuccess={() => {
-                  // سيبه شوية عشان يشوف رسالة النجاح، بعدين اقفل المودال
-                  setTimeout(() => setShowBulkImport(false), 1500);
-                }}
-              />
+              {/* المودال بيفضل مفتوح بعد النجاح عشان العميل يشوف شاشة التأكيد
+                  (أرقام التتبع وإجمالي التحصيل)، ويقفله بنفسه بزرار X */}
+              <BulkImportShipments customerId={customer.id} />
             </div>
           </div>
         </div>

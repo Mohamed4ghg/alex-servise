@@ -11,7 +11,6 @@ import {
   Upload,
 } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
-import { createCustomer } from "@/utils/customers-helper";
 
 // نفس ترتيب وأسماء الأعمدة المتوقعة في الشيت بالظبط (الصف الأول = العناوين)
 // أضفنا عمودي "اسم العميل" و"رقم هاتف العميل" عشان الاستيراد يقدر يحدد/ينشئ
@@ -71,24 +70,28 @@ function generateTrackingNumber() {
  * كل صف في الشيت بيحتوي على بيانات العميل (اسمه ورقم هاتفه) بجانب بيانات
  * المستلم، فمش لازم تختار عميل من الواجهة قبل الاستيراد. بيانات العميل
  * بتتقرا من الشيت مباشرة: لو رقم الهاتف موجود بالفعل في جدول customers
- * بيتم استخدام نفس العميل، ولو مش موجود بيتعمل عميل جديد تلقائيًا.
+ * بيتم استخدام نفس العميل، ولو مش موجود بيتعمل عميل جديد تلقائيًا
+ * (عن طريق دالة الداتابيز find_or_create_customer).
  *
  * customerId (اختياري، للتوافق مع استخدام قديم): لو اتبعت، كل الشحنات
  * هتتسجل باسم العميل ده على طول من غير ما تدور على بيانات العميل في الشيت.
  *
+ * agentId (اختياري): لو المندوب هو اللي بيستورد، مرر id بتاعه من جدول agents
+ * وكل الشحنات هتتسجل باسمه (الداتابيز بتسمح للمندوب يضيف شحنات لنفسه بس).
+ * للأدمن سيبه فاضي.
+ *
  * onSuccess (اختياري): بيتنفذ بعد نجاح رفع الشحنات في قاعدة البيانات.
  *
- * ملاحظة: لو الجدول shipments عنده default value لعمود id (زي gen_random_uuid())
- * وعمود tracking_number عنده unique constraint مربوط بـ sequence أو function في
- * الداتابيز، يفضل تشيل توليد id/tracking_number من هنا خالص وتسيبهم للداتابيز
- * عشان تضمن عدم التصادم. التوليد هنا (Date.now + Math.random) احتمال تصادمه
- * ضعيف لكنه مش صفر.
+ * ملاحظة: توليد tracking_number هنا (Date.now + Math.random) احتمال تصادمه
+ * ضعيف لكنه مش صفر، والعمود عليه unique constraint.
  */
 export default function BulkImportShipments({
   customerId,
+  agentId,
   onSuccess,
 }: {
   customerId?: string;
+  agentId?: string;
   onSuccess?: () => void;
 }) {
   const supabase = createClient();
@@ -265,54 +268,31 @@ export default function BulkImportShipments({
     // العميل (يعني نفس العميل ليه أكتر من شحنة) منعملش عميل مكرر
     const customerIdByPhone = new Map<string, string>();
 
-    if (customerId) {
-      // استخدام قديم: عميل واحد ثابت لكل الصفوف
-      validRows.forEach((r) => customerIdByPhone.set("__fixed__", customerId));
-    } else {
+    if (!customerId) {
       setImportStage("جاري التحقق من بيانات العملاء...");
 
       const uniquePhones = Array.from(new Set(validRows.map((r) => r.customerPhone)));
 
-      // هات أي عملاء موجودين بالفعل بنفس الأرقام دي في نداء واحد
-      const { data: existingCustomers, error: existingError } = await supabase
-        .from("customers")
-        .select("id, phone")
-        .in("phone", uniquePhones);
-
-      if (existingError) {
-        console.error("Fetch existing customers error:", existingError.message);
-        setGlobalError("تعذر التحقق من بيانات العملاء، برجاء المحاولة مرة أخرى");
-        setSubmitting(false);
-        setImportStage(null);
-        return;
-      }
-
-      (existingCustomers ?? []).forEach((c) => {
-        if (c.phone) customerIdByPhone.set(c.phone, c.id);
-      });
-
-      // أنشئ عميل جديد لأي رقم مش موجود في الداتابيز
-      const missingPhones = uniquePhones.filter((p) => !customerIdByPhone.has(p));
-
-      for (const phone of missingPhones) {
+      // لكل رقم عميل: ندور عليه أو ننشئه من غير ما نعرض جدول العملاء كله للمندوب
+      for (const phone of uniquePhones) {
         const row = validRows.find((r) => r.customerPhone === phone)!;
 
-        const { customer, error: createError } = await createCustomer({
-          fullName: row.customerName,
-          phone: row.customerPhone,
+        const { data: cid, error: rpcError } = await supabase.rpc("find_or_create_customer", {
+          p_name: row.customerName,
+          p_phone: phone,
         });
 
-        if (createError || !customer) {
-          console.error("Create customer error:", createError);
+        if (rpcError || !cid) {
+          console.error("find_or_create_customer error:", rpcError?.message);
           setGlobalError(
-            `تعذر إنشاء العميل "${row.customerName}" (${row.customerPhone})، برجاء المحاولة مرة أخرى`
+            `تعذر تحديد/إنشاء العميل "${row.customerName}" (${phone})، برجاء المحاولة مرة أخرى`
           );
           setSubmitting(false);
           setImportStage(null);
           return;
         }
 
-        customerIdByPhone.set(phone, customer.id);
+        customerIdByPhone.set(phone, cid as string);
       }
     }
 
@@ -322,6 +302,7 @@ export default function BulkImportShipments({
       id: `shp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       tracking_number: generateTrackingNumber(),
       customer_id: customerId ?? customerIdByPhone.get(r.customerPhone)!,
+      agent_id: agentId ?? null,
       receiver_name: r.receiverName,
       receiver_phone: r.receiverPhone,
       receiver_address: r.receiverAddress,

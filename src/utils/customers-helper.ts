@@ -19,10 +19,19 @@ export type Customer = {
   user_id?: string | null;
 };
 
+const CUSTOMER_COLUMNS = "id, full_name, name, phone, user_id";
+
 /**
- * إنشاء عميل جديد أو ربط عميل موجود بحساب المستخدم الحالي.
- * لو فيه عميل بنفس رقم التليفون من غير حساب مربوط، بيتم ربطه
- * بدل عمل تكرار.
+ * إنشاء سجل عميل (للأدمن/الـ staff).
+ *
+ * مهم: العميل الجديد بيتسجل من غير user_id (مش مربوط بحساب)، والمستخدم الحالي
+ * بيتسجل في created_by بس. قبل كده كان بيتربط بحساب اللي بينشئه، وده كان بيخلي
+ * الأدمن يبقى "مالك" لكل العملاء اللي بيضيفهم.
+ *
+ * لو فيه عميل بنفس رقم التليفون بيرجّعه زي ما هو بدل ما يكرره.
+ *
+ * لو المطلوب ربط حساب العميل الحالي بسجل عميل (صفحة العميل)، استخدم
+ * getOrCreateMyCustomer بدلها.
  */
 export async function createCustomer(
   input: NewCustomerInput
@@ -31,40 +40,21 @@ export async function createCustomer(
   const type = input.customerType ?? "individual";
   const phone = input.phone.trim();
 
-  // هات المستخدم الحالي لو مسجل دخول
   const { data: userData } = await supabase.auth.getUser();
-  const userId = userData?.user?.id ?? null;
+  const createdBy = userData?.user?.id ?? null;
 
-  // لو فيه يوزر مسجل دخول، شوف هل فيه عميل بنفس التليفون أصلاً
-  if (userId) {
+  // لو فيه عميل بنفس التليفون، رجّعه من غير ما تغير ربطه بأي حساب
+  if (phone) {
     const { data: existing } = await supabase
       .from("customers")
-      .select("id, full_name, name, phone, user_id")
+      .select(CUSTOMER_COLUMNS)
       .eq("phone", phone)
+      .limit(1)
       .maybeSingle();
 
-    if (existing) {
-      // لو موجود ومش مربوط بحد، اربطه بالحساب الحالي
-      if (!existing.user_id) {
-        const { data: updated, error: updateError } = await supabase
-          .from("customers")
-          .update({ user_id: userId })
-          .eq("id", existing.id)
-          .select("id, full_name, name, phone, user_id")
-          .single();
-
-        if (updateError) {
-          console.error("link customer error:", updateError.message);
-          return { customer: null, error: "تعذر ربط العميل، برجاء المحاولة مرة أخرى" };
-        }
-        return { customer: updated, error: null };
-      }
-      // موجود ومربوط بالفعل (بنفس اليوزر أو غيره) - رجّعه زي ما هو
-      return { customer: existing, error: null };
-    }
+    if (existing) return { customer: existing, error: null };
   }
 
-  // مفيش عميل بنفس التليفون، اعمل واحد جديد
   const { data, error } = await supabase
     .from("customers")
     .insert({
@@ -73,14 +63,15 @@ export async function createCustomer(
       customer_type: type,
       type,
       company_name: type === "company" ? input.companyName?.trim() || null : null,
-      phone,
+      phone: phone || null,
       email: input.email?.trim() || null,
       city: input.city?.trim() || null,
       address: input.address?.trim() || null,
       notes: input.notes?.trim() || null,
-      user_id: userId,
+      user_id: null,
+      created_by: createdBy,
     })
-    .select("id, full_name, name, phone, user_id")
+    .select(CUSTOMER_COLUMNS)
     .single();
 
   if (error) {
@@ -89,4 +80,35 @@ export async function createCustomer(
   }
 
   return { customer: data, error: null };
+}
+
+/**
+ * سجل العميل الخاص بالمستخدم الحالي (لصفحة العميل).
+ * بيدور بالـ user_id الأول، ولو مفيش بيربط عميل موجود بنفس الرقم، ولو مفيش
+ * بينشئ عميل جديد. الدالة دي بتشتغل في الداتابيز (find-or-link-or-create)
+ * عشان مفيش تكرار ولا مشاكل صلاحيات.
+ */
+export async function getOrCreateMyCustomer(input: {
+  fullName: string;
+  phone: string;
+}): Promise<{ customer: Customer | null; error: string | null }> {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .rpc("get_or_create_my_customer", {
+      p_name: input.fullName,
+      p_phone: input.phone,
+    })
+    .single();
+
+  if (error || !data) {
+    console.error("getOrCreateMyCustomer error:", error?.message);
+    return { customer: null, error: "تعذر ربط حسابك كعميل، برجاء المحاولة مرة أخرى" };
+  }
+
+  const c = data as Customer;
+  return {
+    customer: { id: c.id, full_name: c.full_name, name: c.name, phone: c.phone, user_id: c.user_id },
+    error: null,
+  };
 }
